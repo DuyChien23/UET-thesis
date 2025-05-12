@@ -1,25 +1,81 @@
-# Virtual Environment
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.venv/
 venv/
 env/
 ENV/
 .env
 
-# Python cache files
-__pycache__/
-*.py[cod]
-*$py.class
-.pytest_cache/
+# Logs
+logs/
+*.log
+
+# Coverage reports
 .coverage
 htmlcov/
+.pytest_cache/
 
-# Distribution / packaging
-dist/
-build/
-*.egg-info/
-
-# IDE specific files
+# IDE and editor files
 .idea/
 .vscode/
 *.swp
 *.swo
-.DS_Store 
+*~
+
+# Database
+*.sqlite3
+*.db
+
+# Environment variables
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+
+# FastAPI
+__pycache__/
+
+# Docker
+.docker/
+docker-compose.override.yml
+
+# Redis
+dump.rdb
+
+# Security
+*.pem
+*.key
+*.crt
+*.csr
+*.cert
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db 

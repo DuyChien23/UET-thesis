@@ -2,23 +2,101 @@ version: '3.8'
 
 services:
   postgres:
-    image: postgres:14-alpine
-    container_name: uet_thesis_db
-    ports:
-      - "5432:5432"
+    image: postgres:15.3-alpine
+    container_name: signature-postgres
+    restart: unless-stopped
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASSWORD=localhost
-      - POSTGRES_DB=ecdsa_signatures
+      POSTGRES_USER: ${POSTGRES_USER:-signature_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-signature_password}
+      POSTGRES_DB: ${POSTGRES_DB:-signature_db}
+      PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    restart: always
+      - ./migrations/init-scripts:/docker-entrypoint-initdb.d
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U signature_user -d signature_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
-      - app-network
+      - signature-network
+
+  redis:
+    image: redis:7.0-alpine
+    container_name: signature-redis
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD:-signature_redis_password} --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - signature-network
+
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: signature-redis-commander
+    restart: unless-stopped
+    environment:
+      - REDIS_HOSTS=local:redis:6379:0:${REDIS_PASSWORD:-signature_redis_password}
+      - HTTP_USER=${REDIS_COMMANDER_USER:-admin}
+      - HTTP_PASSWORD=${REDIS_COMMANDER_PASSWORD:-admin}
+    ports:
+      - "${REDIS_COMMANDER_PORT:-8081}:8081"
+    depends_on:
+      - redis
+    networks:
+      - signature-network
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: signature-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@signature.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    ports:
+      - "${PGADMIN_PORT:-8080}:80"
+    depends_on:
+      - postgres
+    networks:
+      - signature-network
+
+  # Uncomment to include the app in Docker Compose
+  # app:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile
+  #   container_name: signature-app
+  #   restart: unless-stopped
+  #   environment:
+  #     - DATABASE_URL=postgresql+asyncpg://${POSTGRES_USER:-signature_user}:${POSTGRES_PASSWORD:-signature_password}@postgres:5432/${POSTGRES_DB:-signature_db}
+  #     - REDIS_URL=redis://:${REDIS_PASSWORD:-signature_redis_password}@redis:6379/0
+  #     - JWT_SECRET_KEY=${JWT_SECRET_KEY:-supersecretkey}
+  #     - ENVIRONMENT=${ENVIRONMENT:-development}
+  #   ports:
+  #     - "${APP_PORT:-8000}:8000"
+  #   depends_on:
+  #     - postgres
+  #     - redis
+  #   networks:
+  #     - signature-network
 
 volumes:
   postgres_data:
+  redis_data:
+  pgadmin_data:
 
 networks:
-  app-network:
+  signature-network:
     driver: bridge 

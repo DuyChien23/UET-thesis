@@ -1,79 +1,113 @@
-# UET-thesis
+# Digital Signature System Backend
 
-### Topic: Our system uses ECDSA (Elliptic Curve Digital Signature Algorithm) to ensure secure and verifiable digital signatures
-
-## Project Overview
-This project implements a secure digital signature service using ECDSA (Elliptic Curve Digital Signature Algorithm). It allows users to sign any type of data (text, files) and verify signatures with high security standards.
+A modular digital signature system backend that supports multiple signature algorithms with a focus on security and extensibility.
 
 ## Features
-- User registration and authentication with JWT
-- Key pair generation with various ECDSA curves (secp256k1, secp384r1, secp521r1)
-- Secure encryption of private keys
-- Text and file signing
-- Signature verification
-- Full API documentation with Swagger UI
 
-## Technical Requirements
-- Python 3.9+
-- FastAPI
-- PostgreSQL
+- Support for multiple signature algorithms (ECDSA, RSA, EdDSA)
+- Management of elliptic curves (secp256k1, P-256, Curve25519)
+- Server-side signature verification
+- Public key storage and management
+- Role-based access control
+- Comprehensive REST API
+- Redis caching for performance optimization
+
+## Architecture
+
+The system follows a modular architecture inspired by Java Cryptography Architecture (JCA), with these main components:
+
+- Algorithm Provider Interface
+- Algorithm Registry
+- Public Key Management
+- Verification Service
+- User Interface Layer (REST API)
+
+## Technologies
+
+- Python 3.8+
+- FastAPI for REST API
+- PostgreSQL for data storage
+- Redis for caching and token management
+- SQLAlchemy ORM
+- Docker and Docker Compose for containerization
+
+## Security
+
+- Private keys remain with clients, never sent to the server
+- JWT-based authentication with token blacklisting
+- Role-based access control
+- Rate limiting
+- Input validation
+- Secure database access
+
+## Setup and Installation
+
+### Prerequisites
+
 - Docker and Docker Compose
+- Python 3.8+
 
-## Installation and Setup
+### Development Setup
 
-### 1. Clone the repository
-```bash
-git clone https://github.com/yourusername/UET-thesis.git
-cd UET-thesis
+1. Clone the repository:
+   ```
+   git clone https://github.com/your-organization/digital-signature-system.git
+   cd digital-signature-system/be
+   ```
+
+2. Create a virtual environment:
+   ```
+   python -m venv venv
+   source venv/bin/activate  # On Windows: venv\Scripts\activate
+   ```
+
+3. Install dependencies:
+   ```
+   pip install -r requirements.txt
+   ```
+
+4. Copy the example environment file:
+   ```
+   cp .env.example .env
+   ```
+
+5. Start services with Docker Compose:
+   ```
+   docker-compose up -d
+   ```
+
+6. Run migrations:
+   ```
+   sh scripts/run_migrations.sh
+   ```
+
+7. Start the development server:
+   ```
+   uvicorn src.api.app:app --reload
+   ```
+
+8. Access the API documentation at http://localhost:8000/docs
+
+### Running Tests
+
+```
+pytest
 ```
 
-### 2. Install dependencies
-```bash
-pip install -r requirements.txt
-```
+### Production Deployment
 
-### 3. Database setup
-Start the PostgreSQL database using Docker:
-```bash
-docker-compose up -d
-```
-
-### 4. Run migrations
-```bash
-python -m alembic upgrade head
-```
-
-### 5. Start the application
-```bash
-python -m uvicorn main:app --reload
-```
-
-The API will be available at http://localhost:8000
+For production deployment, consider:
+- Using a dedicated PostgreSQL server
+- Setting up Redis Sentinel/Cluster for high availability
+- Using a reverse proxy (Nginx) in front of the application
+- Setting appropriate environment variables for production
 
 ## API Documentation
+
+Once the application is running, detailed API documentation can be accessed at:
 - Swagger UI: http://localhost:8000/docs
 - ReDoc: http://localhost:8000/redoc
 
-## API Endpoints
+## License
 
-### Authentication
-- POST `/users/register` - Register a new user
-- POST `/users/login` - Log in and get JWT token
-
-### Key Pair Management
-- POST `/key-pairs/` - Create a new ECDSA key pair
-- GET `/key-pairs/` - Get all user key pairs
-- GET `/key-pairs/{key_pair_id}` - Get a specific key pair
-
-### Signatures
-- POST `/signatures/sign/text` - Sign text data
-- POST `/signatures/sign/file` - Sign a file
-- POST `/signatures/verify` - Verify a signature
-- GET `/signatures/user` - Get all user signatures
-- GET `/signatures/{signature_id}` - Get a specific signature
-
-## Security Features
-- Password hashing with bcrypt
-- JWT authentication
-- Private key encryption
-- Strong ECDSA curves (up to secp521r1)
+MIT 
