@@ -6,12 +6,12 @@ Provides functions to initialize and access all services.
 import logging
 from typing import Dict, Any, Optional
 
-from services.verification import VerificationService
-from services.public_keys import PublicKeyService
-from services.algorithms import AlgorithmService
-from db.repositories.verification import VerificationRepository
-from db.repositories.public_keys import PublicKeyRepository
-from db.repositories.users import UserRepository
+from src.services.verification import VerificationService
+from src.services.public_keys import PublicKeyService
+from src.services.algorithms import AlgorithmService
+from src.db.repositories.verification import VerificationRepository
+from src.db.repositories.public_keys import PublicKeyRepository
+from src.db.repositories.users import UserRepository
 
 logger = logging.getLogger(__name__)
 

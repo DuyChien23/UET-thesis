@@ -5,9 +5,9 @@ API routes for algorithm information.
 from fastapi import APIRouter, Depends, HTTPException, Path
 from starlette.status import HTTP_404_NOT_FOUND
 
-from api.schemas.algorithms import AlgorithmInfo, AlgorithmList
-from services import get_algorithm_service
-from api.middlewares.auth import get_current_user
+from src.api.schemas.algorithms import AlgorithmInfo, AlgorithmList
+from src.services import get_algorithm_service
+from src.api.middlewares.auth import get_current_user
 
 router = APIRouter(prefix="/algorithms", tags=["algorithms"])
 

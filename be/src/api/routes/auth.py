@@ -7,11 +7,11 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Body
 from starlette.status import HTTP_401_UNAUTHORIZED, HTTP_400_BAD_REQUEST, HTTP_404_NOT_FOUND, HTTP_201_CREATED
 
-from api.schemas.users import UserCreate, UserLogin, Token, UserProfile, UserUpdate, PasswordChange
-from api.middlewares.auth import create_access_token, get_current_user
-from db.repositories.users import UserRepository
-from config.settings import get_settings
-from utils.password import verify_password, get_password_hash
+from src.api.schemas.users import UserCreate, UserLogin, Token, UserProfile, UserUpdate, PasswordChange
+from src.api.middlewares.auth import create_access_token, get_current_user
+from src.db.repositories.users import UserRepository
+from src.config.settings import get_settings
+from src.utils.password import verify_password, get_password_hash
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 

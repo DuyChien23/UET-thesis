@@ -10,12 +10,12 @@ import base64
 from typing import Dict, Any, Optional, Tuple
 from datetime import datetime
 
-from core.registry import get_algorithm_registry
-from db.repositories.verification import VerificationRepository
-from db.repositories.public_keys import PublicKeyRepository
-from db.repositories.users import UserRepository
-from db.models.verification import VerificationStatus
-from services.base import CachedService
+from src.core.registry import get_algorithm_registry
+from src.db.repositories.verification import VerificationRepository
+from src.db.repositories.public_keys import PublicKeyRepository
+from src.db.repositories.users import UserRepository
+from src.db.models.verification import VerificationStatus
+from src.services.base import CachedService
 
 logger = logging.getLogger(__name__)
 

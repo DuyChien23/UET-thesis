@@ -5,9 +5,9 @@ API routes for public key management.
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from starlette.status import HTTP_400_BAD_REQUEST, HTTP_404_NOT_FOUND, HTTP_201_CREATED
 
-from api.schemas.public_keys import PublicKeyCreate, PublicKeyResponse, PublicKeyList, PublicKeyDelete
-from services import get_public_key_service
-from api.middlewares.auth import get_current_user, has_permission
+from src.api.schemas.public_keys import PublicKeyCreate, PublicKeyResponse, PublicKeyList, PublicKeyDelete
+from src.services import get_public_key_service
+from src.api.middlewares.auth import get_current_user, has_permission
 
 router = APIRouter(prefix="/public-keys", tags=["public-keys"])
 

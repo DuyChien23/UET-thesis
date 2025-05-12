@@ -7,13 +7,13 @@ import time
 from datetime import datetime, timedelta
 from typing import Dict, Optional, Any, List, Union
 
-import jwt
+from jose import jwt, JWTError
 from fastapi import Depends, HTTPException, Security
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from starlette.status import HTTP_401_UNAUTHORIZED, HTTP_403_FORBIDDEN
 
-from config.settings import get_settings
-from db.repositories.users import UserRepository
+from src.config.settings import get_settings
+from src.db.repositories.users import UserRepository
 
 
 # Security scheme for API authorization
@@ -80,7 +80,7 @@ def decode_token(token: str) -> Dict[str, Any]:
             detail="Token has expired",
             headers={"WWW-Authenticate": "Bearer"}
         )
-    except jwt.InvalidTokenError:
+    except JWTError:
         raise HTTPException(
             status_code=HTTP_401_UNAUTHORIZED,
             detail="Invalid token",

@@ -3,14 +3,15 @@ Repository for verification records.
 """
 
 import uuid
-from typing import List, Optional, Dict, Any
-from datetime import datetime
+from typing import List, Optional, Dict, Any, Tuple
+from datetime import datetime, timedelta
 
-from sqlalchemy import select, and_
+from sqlalchemy import select, and_, or_, func, desc
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload, joinedload
 
-from db.models.verification import VerificationRecord, VerificationStatus
-from db.repositories.base import BaseRepository
+from src.db.models.verification import VerificationRecord, VerificationStatus, BatchVerification, BatchVerificationItem
+from src.db.repositories.base import BaseRepository
 
 
 class VerificationRepository(BaseRepository[VerificationRecord]):
@@ -64,7 +65,7 @@ class VerificationRepository(BaseRepository[VerificationRecord]):
             "algorithm_name": algorithm_name,
             "status": status,
             "verified_at": verified_at,
-            "metadata": metadata or {}
+            "verification_metadata": metadata or {}
         }
         
         if user_id:

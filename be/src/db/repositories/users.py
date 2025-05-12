@@ -4,8 +4,8 @@ from sqlalchemy import select, and_, func
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from .base import BaseRepository
-from ..models.users import User, Role, Permission, user_roles, role_permissions
+from src.db.repositories.base import BaseRepository
+from src.db.models.users import User, Role, Permission, user_roles, role_permissions
 
 
 class UserRepository(BaseRepository[User]):
@@ -13,42 +13,46 @@ class UserRepository(BaseRepository[User]):
     Repository for user operations
     """
     
-    def __init__(self):
+    def __init__(self, db_session: AsyncSession):
+        """
+        Initialize the repository.
+        
+        Args:
+            db_session (AsyncSession): Database session
+        """
         super().__init__(User)
+        self.db = db_session
     
-    async def get_by_username(self, db: AsyncSession, username: str) -> Optional[User]:
+    async def get_by_username(self, username: str) -> Optional[User]:
         """
         Get a user by username.
         
         Args:
-            db (AsyncSession): Database session
             username (str): Username to search for
             
         Returns:
             Optional[User]: The user if found, None otherwise
         """
         query = select(User).where(User.username == username)
-        result = await db.execute(query)
+        result = await self.db.execute(query)
         return result.scalars().first()
     
-    async def get_by_email(self, db: AsyncSession, email: str) -> Optional[User]:
+    async def get_by_email(self, email: str) -> Optional[User]:
         """
         Get a user by email.
         
         Args:
-            db (AsyncSession): Database session
             email (str): Email to search for
             
         Returns:
             Optional[User]: The user if found, None otherwise
         """
         query = select(User).where(User.email == email)
-        result = await db.execute(query)
+        result = await self.db.execute(query)
         return result.scalars().first()
     
     async def get_active_users(
         self, 
-        db: AsyncSession, 
         *, 
         skip: int = 0, 
         limit: int = 100
@@ -57,7 +61,6 @@ class UserRepository(BaseRepository[User]):
         Get active users with pagination.
         
         Args:
-            db (AsyncSession): Database session
             skip (int): Number of records to skip
             limit (int): Maximum number of records to return
             
@@ -65,41 +68,38 @@ class UserRepository(BaseRepository[User]):
             List[User]: List of active users
         """
         query = select(User).where(User.status == "active").offset(skip).limit(limit)
-        result = await db.execute(query)
+        result = await self.db.execute(query)
         return result.scalars().all()
     
-    async def get_user_with_roles(self, db: AsyncSession, user_id: uuid.UUID) -> Optional[User]:
+    async def get_user_with_roles(self, user_id: uuid.UUID) -> Optional[User]:
         """
         Get a user with their roles.
         
         Args:
-            db (AsyncSession): Database session
             user_id (uuid.UUID): User ID
             
         Returns:
             Optional[User]: The user with roles if found, None otherwise
         """
         query = select(User).where(User.id == user_id).options(selectinload(User.roles))
-        result = await db.execute(query)
+        result = await self.db.execute(query)
         return result.scalars().first()
     
-    async def update_last_login(self, db: AsyncSession, user_id: uuid.UUID) -> None:
+    async def update_last_login(self, user_id: uuid.UUID) -> None:
         """
         Update a user's last login timestamp.
         
         Args:
-            db (AsyncSession): Database session
             user_id (uuid.UUID): User ID
         """
-        user = await self.get(db, user_id)
+        user = await self.get(self.db, user_id)
         if user:
             user.last_login = func.now()
-            db.add(user)
-            await db.commit()
+            self.db.add(user)
+            await self.db.commit()
     
     async def add_role_to_user(
         self, 
-        db: AsyncSession, 
         user_id: uuid.UUID, 
         role_id: uuid.UUID
     ) -> bool:
@@ -107,7 +107,6 @@ class UserRepository(BaseRepository[User]):
         Add a role to a user.
         
         Args:
-            db (AsyncSession): Database session
             user_id (uuid.UUID): User ID
             role_id (uuid.UUID): Role ID
             
@@ -115,13 +114,13 @@ class UserRepository(BaseRepository[User]):
             bool: True if the role was added, False otherwise
         """
         # Check if user and role exist
-        user = await self.get(db, user_id)
+        user = await self.get(self.db, user_id)
         if not user:
             return False
         
         # Get the role
         query = select(Role).where(Role.id == role_id)
-        result = await db.execute(query)
+        result = await self.db.execute(query)
         role = result.scalars().first()
         if not role:
             return False
@@ -133,13 +132,12 @@ class UserRepository(BaseRepository[User]):
         
         # Add the role
         user.roles.append(role)
-        db.add(user)
-        await db.commit()
+        self.db.add(user)
+        await self.db.commit()
         return True
     
     async def remove_role_from_user(
         self, 
-        db: AsyncSession, 
         user_id: uuid.UUID, 
         role_id: uuid.UUID
     ) -> bool:
@@ -147,7 +145,6 @@ class UserRepository(BaseRepository[User]):
         Remove a role from a user.
         
         Args:
-            db (AsyncSession): Database session
             user_id (uuid.UUID): User ID
             role_id (uuid.UUID): Role ID
             
@@ -155,7 +152,7 @@ class UserRepository(BaseRepository[User]):
             bool: True if the role was removed, False otherwise
         """
         # Check if user exists
-        user = await self.get_user_with_roles(db, user_id)
+        user = await self.get_user_with_roles(user_id)
         if not user:
             return False
         
@@ -168,14 +165,13 @@ class UserRepository(BaseRepository[User]):
                 break
         
         if removed:
-            db.add(user)
-            await db.commit()
+            self.db.add(user)
+            await self.db.commit()
         
         return removed
     
     async def user_has_permission(
         self, 
-        db: AsyncSession, 
         user_id: uuid.UUID, 
         permission_name: str
     ) -> bool:
@@ -183,7 +179,6 @@ class UserRepository(BaseRepository[User]):
         Check if a user has a specific permission through any of their roles.
         
         Args:
-            db (AsyncSession): Database session
             user_id (uuid.UUID): User ID
             permission_name (str): Permission name to check
             
@@ -206,7 +201,7 @@ class UserRepository(BaseRepository[User]):
             )
         )
         
-        result = await db.execute(query)
+        result = await self.db.execute(query)
         count = result.scalar_one()
         return count > 0
 
@@ -216,42 +211,46 @@ class RoleRepository(BaseRepository[Role]):
     Repository for role operations
     """
     
-    def __init__(self):
+    def __init__(self, db_session: AsyncSession):
+        """
+        Initialize the repository.
+        
+        Args:
+            db_session (AsyncSession): Database session
+        """
         super().__init__(Role)
+        self.db = db_session
     
-    async def get_by_name(self, db: AsyncSession, name: str) -> Optional[Role]:
+    async def get_by_name(self, name: str) -> Optional[Role]:
         """
         Get a role by name.
         
         Args:
-            db (AsyncSession): Database session
             name (str): Role name to search for
             
         Returns:
             Optional[Role]: The role if found, None otherwise
         """
         query = select(Role).where(Role.name == name)
-        result = await db.execute(query)
+        result = await self.db.execute(query)
         return result.scalars().first()
     
-    async def get_role_with_permissions(self, db: AsyncSession, role_id: uuid.UUID) -> Optional[Role]:
+    async def get_role_with_permissions(self, role_id: uuid.UUID) -> Optional[Role]:
         """
         Get a role with its permissions.
         
         Args:
-            db (AsyncSession): Database session
             role_id (uuid.UUID): Role ID
             
         Returns:
             Optional[Role]: The role with permissions if found, None otherwise
         """
         query = select(Role).where(Role.id == role_id).options(selectinload(Role.permissions))
-        result = await db.execute(query)
+        result = await self.db.execute(query)
         return result.scalars().first()
     
     async def add_permission_to_role(
         self, 
-        db: AsyncSession, 
         role_id: uuid.UUID, 
         permission_id: uuid.UUID
     ) -> bool:
@@ -259,7 +258,6 @@ class RoleRepository(BaseRepository[Role]):
         Add a permission to a role.
         
         Args:
-            db (AsyncSession): Database session
             role_id (uuid.UUID): Role ID
             permission_id (uuid.UUID): Permission ID
             
@@ -267,13 +265,13 @@ class RoleRepository(BaseRepository[Role]):
             bool: True if the permission was added, False otherwise
         """
         # Check if role and permission exist
-        role = await self.get_role_with_permissions(db, role_id)
+        role = await self.get_role_with_permissions(role_id)
         if not role:
             return False
         
         # Get the permission
         query = select(Permission).where(Permission.id == permission_id)
-        result = await db.execute(query)
+        result = await self.db.execute(query)
         permission = result.scalars().first()
         if not permission:
             return False
@@ -285,13 +283,12 @@ class RoleRepository(BaseRepository[Role]):
         
         # Add the permission
         role.permissions.append(permission)
-        db.add(role)
-        await db.commit()
+        self.db.add(role)
+        await self.db.commit()
         return True
     
     async def remove_permission_from_role(
         self, 
-        db: AsyncSession, 
         role_id: uuid.UUID, 
         permission_id: uuid.UUID
     ) -> bool:
@@ -299,7 +296,6 @@ class RoleRepository(BaseRepository[Role]):
         Remove a permission from a role.
         
         Args:
-            db (AsyncSession): Database session
             role_id (uuid.UUID): Role ID
             permission_id (uuid.UUID): Permission ID
             
@@ -307,7 +303,7 @@ class RoleRepository(BaseRepository[Role]):
             bool: True if the permission was removed, False otherwise
         """
         # Check if role exists
-        role = await self.get_role_with_permissions(db, role_id)
+        role = await self.get_role_with_permissions(role_id)
         if not role:
             return False
         
@@ -320,8 +316,8 @@ class RoleRepository(BaseRepository[Role]):
                 break
         
         if removed:
-            db.add(role)
-            await db.commit()
+            self.db.add(role)
+            await self.db.commit()
         
         return removed
 
@@ -331,20 +327,26 @@ class PermissionRepository(BaseRepository[Permission]):
     Repository for permission operations
     """
     
-    def __init__(self):
+    def __init__(self, db_session: AsyncSession):
+        """
+        Initialize the repository.
+        
+        Args:
+            db_session (AsyncSession): Database session
+        """
         super().__init__(Permission)
+        self.db = db_session
     
-    async def get_by_name(self, db: AsyncSession, name: str) -> Optional[Permission]:
+    async def get_by_name(self, name: str) -> Optional[Permission]:
         """
         Get a permission by name.
         
         Args:
-            db (AsyncSession): Database session
             name (str): Permission name to search for
             
         Returns:
             Optional[Permission]: The permission if found, None otherwise
         """
         query = select(Permission).where(Permission.name == name)
-        result = await db.execute(query)
+        result = await self.db.execute(query)
         return result.scalars().first() 

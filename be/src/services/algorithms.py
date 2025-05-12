@@ -6,8 +6,8 @@ Provides information about available algorithms and their capabilities.
 import logging
 from typing import Dict, Any, List, Optional
 
-from core.registry import get_algorithm_registry
-from services.base import CachedService
+from src.core.registry import get_algorithm_registry
+from src.services.base import CachedService
 
 logger = logging.getLogger(__name__)
 

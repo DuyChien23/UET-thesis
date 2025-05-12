@@ -1,8 +1,7 @@
 from sqlalchemy import Column, String, ForeignKey, Text, JSON
-from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 
-from ..base import Base
+from ..base import Base, UUID, JSONB
 
 
 class Algorithm(Base):
@@ -31,7 +30,7 @@ class Curve(Base):
     __tablename__ = "curves"
     
     name = Column(String(64), unique=True, nullable=False, index=True)
-    algorithm_id = Column(UUID(as_uuid=True), ForeignKey("algorithms.id"), nullable=False)
+    algorithm_id = Column(UUID, ForeignKey("algorithms.id"), nullable=False)
     parameters = Column(JSONB, nullable=False)
     description = Column(Text, nullable=True)
     status = Column(

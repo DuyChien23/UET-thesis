@@ -5,9 +5,9 @@ API routes for digital signature verification.
 from fastapi import APIRouter, Depends, HTTPException, Path
 from starlette.status import HTTP_400_BAD_REQUEST, HTTP_404_NOT_FOUND
 
-from api.schemas.verification import VerificationRequest, VerificationResponse
-from services import get_verification_service
-from api.middlewares.auth import get_current_user
+from src.api.schemas.verification import VerificationRequest, VerificationResponse
+from src.services import get_verification_service
+from src.api.middlewares.auth import get_current_user
 
 router = APIRouter(prefix="/verification", tags=["verification"])
 

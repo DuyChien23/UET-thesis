@@ -5,7 +5,8 @@ Uses environment variables with fallback to default values.
 
 import os
 from functools import lru_cache
-from pydantic import BaseSettings, PostgresDsn, validator, Field
+from pydantic_settings import BaseSettings
+from pydantic import validator, Field
 
 
 class Settings(BaseSettings):
@@ -19,6 +20,7 @@ class Settings(BaseSettings):
     debug: bool = Field(False, env="DEBUG")
     host: str = Field("0.0.0.0", env="HOST")
     port: int = Field(8000, env="PORT")
+    mock_services: bool = Field(False, env="MOCK_SERVICES")
     
     # Database settings
     postgres_user: str = Field("postgres", env="POSTGRES_USER")
@@ -41,7 +43,7 @@ class Settings(BaseSettings):
     jwt_expire_minutes: int = Field(60 * 24, env="JWT_EXPIRE_MINUTES")  # 24 hours by default
     
     # CORS settings
-    cors_origins: list[str] = Field(["*"], env="CORS_ORIGINS")
+    cors_origins: str = Field("*", env="CORS_ORIGINS")
     
     @validator("database_url", pre=True)
     def assemble_db_url(cls, v, values):

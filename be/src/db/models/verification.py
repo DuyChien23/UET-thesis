@@ -3,13 +3,12 @@ Verification models module.
 Contains SQLAlchemy models for storing verification records.
 """
 
-from sqlalchemy import Column, String, ForeignKey, Text, DateTime
-from sqlalchemy.dialects.postgresql import UUID, JSONB
+from sqlalchemy import Column, String, ForeignKey, Text, DateTime, Integer
 from sqlalchemy.orm import relationship
 from enum import Enum, auto
 from datetime import datetime
 
-from ..base import Base
+from ..base import Base, UUID, JSONB
 
 
 class VerificationStatus(str, Enum):
@@ -25,9 +24,10 @@ class VerificationRecord(Base):
     """
     Model for storing signature verification records.
     """
+    __tablename__ = "verification_records"
     
     # User and document references
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, index=True)
+    user_id = Column(UUID, ForeignKey("users.id"), nullable=True, index=True)
     document_id = Column(String(255), nullable=True, index=True)
     
     # Verification details
@@ -38,14 +38,14 @@ class VerificationRecord(Base):
     algorithm_name = Column(String(50), nullable=False, index=True)
     
     # Public key reference
-    public_key_id = Column(UUID(as_uuid=True), ForeignKey("public_keys.id"), nullable=False, index=True)
+    public_key_id = Column(UUID, ForeignKey("public_keys.id"), nullable=False, index=True)
     
     # Verification result
     status = Column(String(16), nullable=False, index=True)
     verified_at = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
     
     # Additional data
-    metadata = Column(JSONB, nullable=True)
+    verification_metadata = Column(JSONB, nullable=True)
     
     # Relationships
     user = relationship("User", back_populates="verification_records")
@@ -62,10 +62,10 @@ class BatchVerification(Base):
     """
     __tablename__ = "batch_verifications"
     
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
+    user_id = Column(UUID, ForeignKey("users.id"), nullable=False)
     total_count = Column(Integer, nullable=False)
     success_count = Column(Integer, nullable=False)
-    metadata = Column(JSONB, nullable=True)
+    batch_metadata = Column(JSONB, nullable=True)
     
     # Relationships
     user = relationship("User", back_populates="batch_verifications")
@@ -94,8 +94,8 @@ class BatchVerificationItem(Base):
     """
     __tablename__ = "batch_verification_items"
     
-    batch_id = Column(UUID(as_uuid=True), ForeignKey("batch_verifications.id", ondelete="CASCADE"), nullable=False)
-    verification_record_id = Column(UUID(as_uuid=True), ForeignKey("verification_records.id"), nullable=False)
+    batch_id = Column(UUID, ForeignKey("batch_verifications.id", ondelete="CASCADE"), nullable=False)
+    verification_record_id = Column(UUID, ForeignKey("verification_records.id"), nullable=False)
     item_index = Column(Integer, nullable=False)
     
     # Relationships

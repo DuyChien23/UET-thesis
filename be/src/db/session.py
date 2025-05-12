@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine, AsyncSessio
 from sqlalchemy.ext.asyncio import async_sessionmaker
 from sqlalchemy.pool import NullPool
 
-from config.settings import get_settings
+from src.config.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -32,14 +32,21 @@ def get_engine() -> AsyncEngine:
     if _engine is None:
         settings = get_settings()
         
-        logger.info(f"Creating database engine with URL: {settings.database_url}")
-        
-        _engine = create_async_engine(
-            settings.database_url,
-            echo=settings.debug,
-            future=True,
-            poolclass=NullPool if settings.debug else None,
-        )
+        if settings.mock_services:
+            logger.info("Creating in-memory SQLite database engine for mock mode")
+            _engine = create_async_engine(
+                "sqlite+aiosqlite:///:memory:",
+                echo=settings.debug,
+                future=True,
+            )
+        else:
+            logger.info(f"Creating database engine with URL: {settings.database_url}")
+            _engine = create_async_engine(
+                settings.database_url,
+                echo=settings.debug,
+                future=True,
+                poolclass=NullPool if settings.debug else None,
+            )
     
     return _engine
 

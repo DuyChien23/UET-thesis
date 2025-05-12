@@ -8,14 +8,14 @@ import asyncio
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 
-from config.settings import get_settings
-from config.logging import setup_logging
-from db.session import get_engine, get_db_session, close_db_connection
-from db.base import Base
-from algorithms import initialize_algorithms
-from services import init_services, shutdown_services
-from cache import init_cache, shutdown_cache, get_cache_client
-from api.routes import api_router
+from src.config.settings import get_settings
+from src.config.logging import setup_logging
+from src.db.session import get_engine, get_db_session, close_db_connection
+from src.db.base import Base
+from src.algorithms import initialize_algorithms
+from src.services import init_services, shutdown_services
+from src.cache import init_cache, shutdown_cache, get_cache_client
+from src.api.routes import api_router
 
 # Setup logging
 setup_logging()
@@ -29,9 +29,11 @@ app = FastAPI(
 )
 
 # Add CORS middleware
+cors_settings = get_settings()
+origins = [origin.strip() for origin in cors_settings.cors_origins.split(",")] if cors_settings.cors_origins != "*" else ["*"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with specific origins
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -110,9 +112,9 @@ if __name__ == "__main__":
     
     settings = get_settings()
     uvicorn.run(
-        "main:app",
+        "src.main:app",
         host=settings.host,
         port=settings.port,
-        reload=settings.debug,
+        reload=False,
         log_level="debug" if settings.debug else "info"
     ) 

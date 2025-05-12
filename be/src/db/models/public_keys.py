@@ -4,19 +4,19 @@ Contains SQLAlchemy models for public key storage.
 """
 
 from sqlalchemy import Column, String, ForeignKey, Text
-from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 
-from ..base import Base
+from ..base import Base, UUID, JSONB
 
 
 class PublicKey(Base):
     """
     Model for storing public keys.
     """
+    __tablename__ = "public_keys"
     
     # Foreign key to user
-    user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(UUID, ForeignKey("users.id"), nullable=False, index=True)
     
     # Key data and metadata
     key_data = Column(Text, nullable=False)
@@ -28,7 +28,7 @@ class PublicKey(Base):
     curve_name = Column(String(50), nullable=True, index=True)
     
     # Additional metadata
-    metadata = Column(JSONB, nullable=True)
+    key_metadata = Column(JSONB, nullable=True)
     
     # Key fingerprint (for display/quick comparison)
     fingerprint = Column(String(64), nullable=True, unique=True, index=True)

@@ -6,11 +6,16 @@ Provides functionality for creating, retrieving, and validating public keys.
 import logging
 from typing import Dict, Any, Optional, List
 from datetime import datetime
+import base64
+import uuid
+import hashlib
 
-from core.registry import get_algorithm_registry
-from db.repositories.public_keys import PublicKeyRepository
-from db.repositories.users import UserRepository
-from services.base import CachedService
+from cryptography.hazmat.primitives.serialization import load_pem_public_key, load_der_public_key
+
+from src.core.registry import get_algorithm_registry
+from src.db.repositories.public_keys import PublicKeyRepository
+from src.db.repositories.users import UserRepository
+from src.services.base import CachedService
 
 logger = logging.getLogger(__name__)
 
@@ -231,5 +236,4 @@ class PublicKeyService(CachedService[Dict[str, Any]]):
         Returns:
             A fingerprint string
         """
-        import hashlib
         return hashlib.sha256(key_data.encode()).hexdigest()[:16] 

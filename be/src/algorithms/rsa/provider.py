@@ -5,7 +5,7 @@ from cryptography.hazmat.primitives.asymmetric import padding, rsa, utils
 from cryptography.hazmat.primitives.serialization import load_pem_public_key, load_der_public_key
 from cryptography.exceptions import InvalidSignature
 
-from core.interfaces import SignatureAlgorithmProvider, PublicKeyValidator
+from src.core.interfaces import SignatureAlgorithmProvider, PublicKeyValidator
 
 
 class RSAProvider(SignatureAlgorithmProvider, PublicKeyValidator):

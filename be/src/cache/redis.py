@@ -6,8 +6,8 @@ Provides async Redis client for caching operations.
 import json
 import logging
 from typing import Any, Optional, Union
-import aioredis
-from aioredis import Redis
+import redis.asyncio as redis
+from redis.asyncio import Redis
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ class RedisCache:
         Connect to Redis.
         """
         logger.info(f"Connecting to Redis at {self.redis_url}")
-        self.redis = await aioredis.from_url(
+        self.redis = redis.from_url(
             self.redis_url,
             encoding="utf-8",
             decode_responses=True

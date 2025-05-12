@@ -5,11 +5,12 @@ Repository for public keys.
 import uuid
 from typing import List, Optional, Dict, Any
 
-from sqlalchemy import select
+from sqlalchemy import select, and_, or_
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
-from db.models.public_keys import PublicKey
-from db.repositories.base import BaseRepository
+from src.db.models.public_keys import PublicKey
+from src.db.repositories.base import BaseRepository
 
 
 class PublicKeyRepository(BaseRepository[PublicKey]):
@@ -59,7 +60,7 @@ class PublicKeyRepository(BaseRepository[PublicKey]):
             "name": name,
             "description": description,
             "curve_name": curve_name,
-            "metadata": metadata or {}
+            "key_metadata": metadata or {}
         }
         
         return await super().create(self.db, public_key_data)
@@ -170,4 +171,103 @@ class PublicKeyRepository(BaseRepository[PublicKey]):
         Returns:
             bool: True if the key was deleted, False otherwise
         """
-        return await super().delete(self.db, uuid.UUID(key_id)) 
+        return await super().delete(self.db, uuid.UUID(key_id))
+    
+    async def get_user_keys(
+        self, 
+        user_id: uuid.UUID, 
+        algorithm_name: Optional[str] = None,
+        skip: int = 0,
+        limit: int = 100
+    ) -> List[PublicKey]:
+        """
+        Get public keys for a specific user.
+        
+        Args:
+            user_id (uuid.UUID): User ID to get keys for
+            algorithm_name (Optional[str]): Filter by algorithm name
+            skip (int): Number of records to skip
+            limit (int): Maximum number of records to return
+            
+        Returns:
+            List[PublicKey]: List of public keys for the user
+        """
+        # Base query for user's keys
+        query = select(PublicKey).where(PublicKey.user_id == user_id)
+        
+        # Add algorithm filter if provided
+        if algorithm_name:
+            query = query.where(PublicKey.algorithm_name == algorithm_name)
+        
+        # Add pagination
+        query = query.offset(skip).limit(limit)
+        
+        # Execute query
+        result = await self.db.execute(query)
+        return result.scalars().all()
+    
+    async def get_by_fingerprint(self, fingerprint: str) -> Optional[PublicKey]:
+        """
+        Get a public key by its fingerprint.
+        
+        Args:
+            fingerprint (str): Key fingerprint
+            
+        Returns:
+            Optional[PublicKey]: The public key if found, None otherwise
+        """
+        query = select(PublicKey).where(PublicKey.fingerprint == fingerprint)
+        result = await self.db.execute(query)
+        return result.scalars().first()
+    
+    async def search_keys(
+        self,
+        user_id: Optional[uuid.UUID] = None,
+        algorithm_name: Optional[str] = None,
+        curve_name: Optional[str] = None,
+        name_contains: Optional[str] = None,
+        skip: int = 0,
+        limit: int = 100
+    ) -> List[PublicKey]:
+        """
+        Search for public keys with various filters.
+        
+        Args:
+            user_id (Optional[uuid.UUID]): Filter by user ID
+            algorithm_name (Optional[str]): Filter by algorithm name
+            curve_name (Optional[str]): Filter by curve name
+            name_contains (Optional[str]): Filter by key name containing this string
+            skip (int): Number of records to skip
+            limit (int): Maximum number of records to return
+            
+        Returns:
+            List[PublicKey]: List of matching public keys
+        """
+        # Start with base query
+        query = select(PublicKey)
+        
+        # Apply filters
+        filters = []
+        
+        if user_id:
+            filters.append(PublicKey.user_id == user_id)
+            
+        if algorithm_name:
+            filters.append(PublicKey.algorithm_name == algorithm_name)
+            
+        if curve_name:
+            filters.append(PublicKey.curve_name == curve_name)
+            
+        if name_contains:
+            filters.append(PublicKey.name.ilike(f"%{name_contains}%"))
+        
+        # Apply all filters
+        if filters:
+            query = query.where(and_(*filters))
+        
+        # Add pagination
+        query = query.offset(skip).limit(limit)
+        
+        # Execute query
+        result = await self.db.execute(query)
+        return result.scalars().all() 

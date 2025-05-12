@@ -4,27 +4,26 @@ Contains SQLAlchemy models for user management with roles and permissions.
 """
 
 from sqlalchemy import Column, String, ForeignKey, Table, Boolean, DateTime
-from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from datetime import datetime
 
-from ..base import Base
+from ..base import Base, UUID
 
 
 # Association table for user roles
 user_roles = Table(
     "user_roles",
     Base.metadata,
-    Column("user_id", UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
-    Column("role_id", UUID(as_uuid=True), ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True)
+    Column("user_id", UUID, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
+    Column("role_id", UUID, ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True)
 )
 
 # Association table for role permissions
 role_permissions = Table(
     "role_permissions",
     Base.metadata,
-    Column("role_id", UUID(as_uuid=True), ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True),
-    Column("permission_id", UUID(as_uuid=True), ForeignKey("permissions.id", ondelete="CASCADE"), primary_key=True)
+    Column("role_id", UUID, ForeignKey("roles.id", ondelete="CASCADE"), primary_key=True),
+    Column("permission_id", UUID, ForeignKey("permissions.id", ondelete="CASCADE"), primary_key=True)
 )
 
 
@@ -32,6 +31,7 @@ class User(Base):
     """
     User model.
     """
+    __tablename__ = "users"
     
     # Authentication
     username = Column(String(50), nullable=False, unique=True, index=True)
@@ -58,6 +58,7 @@ class Role(Base):
     """
     Role model for authorization.
     """
+    __tablename__ = "roles"
     
     name = Column(String(50), nullable=False, unique=True, index=True)
     description = Column(String(255), nullable=True)
@@ -74,6 +75,7 @@ class Permission(Base):
     """
     Permission model for fine-grained authorization.
     """
+    __tablename__ = "permissions"
     
     name = Column(String(50), nullable=False, unique=True, index=True)
     description = Column(String(255), nullable=True)

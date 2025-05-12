@@ -40,38 +40,6 @@ services:
     networks:
       - signature-network
 
-  redis-commander:
-    image: rediscommander/redis-commander:latest
-    container_name: signature-redis-commander
-    restart: unless-stopped
-    environment:
-      - REDIS_HOSTS=local:redis:6379:0:${REDIS_PASSWORD:-signature_redis_password}
-      - HTTP_USER=${REDIS_COMMANDER_USER:-admin}
-      - HTTP_PASSWORD=${REDIS_COMMANDER_PASSWORD:-admin}
-    ports:
-      - "${REDIS_COMMANDER_PORT:-8081}:8081"
-    depends_on:
-      - redis
-    networks:
-      - signature-network
-
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    container_name: signature-pgadmin
-    restart: unless-stopped
-    environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@signature.com}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
-      PGADMIN_CONFIG_SERVER_MODE: 'False'
-    volumes:
-      - pgadmin_data:/var/lib/pgadmin
-    ports:
-      - "${PGADMIN_PORT:-8080}:80"
-    depends_on:
-      - postgres
-    networks:
-      - signature-network
-
   # Uncomment to include the app in Docker Compose
   # app:
   #   build:
@@ -95,7 +63,6 @@ services:
 volumes:
   postgres_data:
   redis_data:
-  pgadmin_data:
 
 networks:
   signature-network:

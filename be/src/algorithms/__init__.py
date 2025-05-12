@@ -3,10 +3,10 @@ Digital signature algorithm initialization module.
 This module imports and registers all available algorithm providers.
 """
 
-from core.registry import get_algorithm_registry
-from algorithms.ecdsa.provider import ECDSAProvider
-from algorithms.eddsa.provider import EdDSAProvider
-from algorithms.rsa.provider import RSAProvider
+from src.core.registry import get_algorithm_registry
+from src.algorithms.ecdsa.provider import ECDSAProvider
+from src.algorithms.eddsa.provider import EdDSAProvider
+from src.algorithms.rsa.provider import RSAProvider
 
 def initialize_algorithms():
     """
