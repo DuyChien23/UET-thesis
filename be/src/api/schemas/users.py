@@ -23,6 +23,16 @@ class Token(BaseModel):
     expires_in: int = Field(..., description="Token expiration time in seconds")
 
 
+class UserResponse(BaseModel):
+    """Schema for user authentication response."""
+    id: str = Field(..., description="User ID")
+    username: str = Field(..., description="Username")
+    email: EmailStr = Field(..., description="Email address")
+    full_name: Optional[str] = Field(None, description="Full name")
+    is_active: bool = Field(..., description="User is active")
+    is_superuser: bool = Field(..., description="User is superuser")
+
+
 class UserProfile(BaseModel):
     """Schema for user profile."""
     id: str = Field(..., description="User ID")

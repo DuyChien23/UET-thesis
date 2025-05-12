@@ -7,25 +7,29 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, Body
 from starlette.status import HTTP_401_UNAUTHORIZED, HTTP_400_BAD_REQUEST, HTTP_404_NOT_FOUND, HTTP_201_CREATED
 
-from src.api.schemas.users import UserCreate, UserLogin, Token, UserProfile, UserUpdate, PasswordChange
+from src.api.schemas.users import UserCreate, UserLogin, Token, UserProfile, UserUpdate, PasswordChange, UserResponse
 from src.api.middlewares.auth import create_access_token, get_current_user
 from src.db.repositories.users import UserRepository
 from src.config.settings import get_settings
 from src.utils.password import verify_password, get_password_hash
+from src.db.session import get_db_session
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/register", response_model=UserProfile, status_code=HTTP_201_CREATED)
 async def register_user(
-    user_data: UserCreate,
-    user_repo: UserRepository = Depends()
+    user_data: UserCreate
 ):
     """
     Register a new user.
     
     Creates a new user account with the provided details.
     """
+    # Get session and repository
+    session = await get_db_session()
+    user_repo = UserRepository(session)
+    
     # Check if username already exists
     if await user_repo.get_by_username(user_data.username):
         raise HTTPException(
@@ -75,14 +79,17 @@ async def register_user(
 
 @router.post("/login", response_model=Token)
 async def login_user(
-    login_data: UserLogin,
-    user_repo: UserRepository = Depends()
+    login_data: UserLogin
 ):
     """
     User login.
     
     Authenticates a user and returns a JWT token.
     """
+    # Get session and repository
+    session = await get_db_session()
+    user_repo = UserRepository(session)
+    
     # Check if user exists
     user = await user_repo.get_by_username(login_data.username)
     if not user:
@@ -123,15 +130,18 @@ async def login_user(
 
 @router.get("/profile", response_model=UserProfile)
 async def get_profile(
-    user = Depends(get_current_user),
-    user_repo: UserRepository = Depends()
+    current_user: UserResponse = Depends(get_current_user)
 ):
     """
     Get current user profile.
     
     Returns the profile information for the authenticated user.
     """
-    user_with_roles = await user_repo.get_user_with_roles(user.id)
+    # Get session and repository
+    session = await get_db_session()
+    user_repo = UserRepository(session)
+    
+    user_with_roles = await user_repo.get_user_with_roles(current_user.id)
     
     return {
         "id": str(user_with_roles.id),
@@ -148,21 +158,24 @@ async def get_profile(
 @router.put("/profile", response_model=UserProfile)
 async def update_profile(
     update_data: UserUpdate,
-    user = Depends(get_current_user),
-    user_repo: UserRepository = Depends()
+    current_user: UserResponse = Depends(get_current_user)
 ):
     """
     Update user profile.
     
     Updates the profile information for the authenticated user.
     """
+    # Get session and repository
+    session = await get_db_session()
+    user_repo = UserRepository(session)
+    
     # Prepare update data
     update_dict = {}
     
     if update_data.email is not None:
         # Check if email already exists
         existing_user = await user_repo.get_by_email(update_data.email)
-        if existing_user and existing_user.id != user.id:
+        if existing_user and existing_user.id != current_user.id:
             raise HTTPException(
                 status_code=HTTP_400_BAD_REQUEST,
                 detail="Email already registered"
@@ -176,7 +189,7 @@ async def update_profile(
         update_dict["password_hash"] = get_password_hash(update_data.password)
     
     # Update the user
-    updated_user = await user_repo.update(id=user.id, obj_in=update_dict)
+    updated_user = await user_repo.update(id=current_user.id, obj_in=update_dict)
     
     if not updated_user:
         raise HTTPException(
@@ -203,14 +216,20 @@ async def update_profile(
 @router.post("/change-password")
 async def change_password(
     password_data: PasswordChange,
-    user = Depends(get_current_user),
-    user_repo: UserRepository = Depends()
+    current_user: UserResponse = Depends(get_current_user)
 ):
     """
     Change user password.
     
     Changes the password for the authenticated user.
     """
+    # Get session and repository
+    session = await get_db_session()
+    user_repo = UserRepository(session)
+    
+    # Get the full user object with password hash
+    user = await user_repo.get_by_id(current_user.id)
+    
     # Verify current password
     if not verify_password(password_data.current_password, user.password_hash):
         raise HTTPException(

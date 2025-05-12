@@ -1,22 +1,23 @@
 # Web Framework
-fastapi==0.115.12
-uvicorn==0.24.0
-pydantic==2.5.0
+fastapi==0.110.0
+uvicorn==0.27.1
+pydantic==2.6.1
 pydantic-settings==2.1.0
 email-validator==2.1.0
-python-multipart==0.0.6
+python-multipart==0.0.9
 
 # Cryptography
-cryptography==41.0.5
-pycryptodome==3.19.0
+cryptography==41.0.7
+pycryptodome==3.19.1
 python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 
 # Database
-sqlalchemy==2.0.23
-alembic==1.12.1
+sqlalchemy==2.0.27
+alembic==1.13.1
 psycopg2-binary==2.9.9
 asyncpg==0.29.0
+aiosqlite==0.19.0
 
 # Redis
 redis==5.0.1
@@ -25,16 +26,16 @@ hiredis==2.2.3
 # Utilities
 python-dotenv==1.0.0
 tenacity==8.2.3
-httpx==0.25.1
+httpx==0.26.0
 structlog==23.2.0
-rich==13.6.0
-typing-extensions==4.8.0
+rich==13.7.0
+typing-extensions==4.9.0
 
 # Testing
-pytest==7.4.3
-pytest-asyncio==0.21.1
+pytest==7.4.4
+pytest-asyncio==0.23.4
 pytest-cov==4.1.0
-coverage==7.3.2
+coverage==7.4.1
 pytest-mock==3.12.0
 asynctest==0.13.0
-faker==20.0.3 
+faker==22.4.0

@@ -8,6 +8,7 @@ from starlette.status import HTTP_400_BAD_REQUEST, HTTP_404_NOT_FOUND
 from src.api.schemas.verification import VerificationRequest, VerificationResponse
 from src.services import get_verification_service
 from src.api.middlewares.auth import get_current_user
+from src.api.schemas.users import UserResponse
 
 router = APIRouter(prefix="/verification", tags=["verification"])
 
@@ -15,7 +16,7 @@ router = APIRouter(prefix="/verification", tags=["verification"])
 @router.post("/", response_model=VerificationResponse)
 async def verify_signature(
     request: VerificationRequest,
-    user = Depends(get_current_user)
+    current_user: UserResponse = Depends(get_current_user)
 ):
     """
     Verify a digital signature.
@@ -30,7 +31,7 @@ async def verify_signature(
             signature=request.signature,
             public_key_id=str(request.public_key_id),
             algorithm_name=request.algorithm_name,
-            user_id=str(user.id),
+            user_id=str(current_user.id),
             document_id=request.document_id,
             metadata=request.metadata
         )
@@ -47,7 +48,7 @@ async def verify_signature(
 @router.get("/{verification_id}", response_model=VerificationResponse)
 async def get_verification(
     verification_id: str = Path(..., description="The verification record ID"),
-    user = Depends(get_current_user)
+    current_user: UserResponse = Depends(get_current_user)
 ):
     """
     Get a verification record by ID.

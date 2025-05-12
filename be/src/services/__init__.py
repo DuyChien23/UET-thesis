@@ -21,7 +21,7 @@ _public_key_service: Optional[PublicKeyService] = None
 _algorithm_service: Optional[AlgorithmService] = None
 
 
-def init_services(db_session, cache_client=None):
+async def init_services(db_session, cache_client=None):
     """
     Initialize all services.
     
@@ -62,7 +62,7 @@ def init_services(db_session, cache_client=None):
     logger.info("Services initialized")
 
 
-def shutdown_services():
+async def shutdown_services():
     """Shutdown all services."""
     global _verification_service, _public_key_service, _algorithm_service
     

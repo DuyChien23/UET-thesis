@@ -8,13 +8,14 @@ from starlette.status import HTTP_404_NOT_FOUND
 from src.api.schemas.algorithms import AlgorithmInfo, AlgorithmList
 from src.services import get_algorithm_service
 from src.api.middlewares.auth import get_current_user
+from src.api.schemas.users import UserResponse
 
 router = APIRouter(prefix="/algorithms", tags=["algorithms"])
 
 
 @router.get("/", response_model=AlgorithmList)
 async def get_algorithms(
-    user = Depends(get_current_user)
+    current_user: UserResponse = Depends(get_current_user)
 ):
     """
     Get all supported algorithms.
@@ -33,7 +34,7 @@ async def get_algorithms(
 
 @router.get("/default", response_model=AlgorithmInfo)
 async def get_default_algorithm(
-    user = Depends(get_current_user)
+    current_user: UserResponse = Depends(get_current_user)
 ):
     """
     Get the default algorithm.
@@ -55,7 +56,7 @@ async def get_default_algorithm(
 @router.get("/{algorithm_name}", response_model=AlgorithmInfo)
 async def get_algorithm(
     algorithm_name: str = Path(..., description="The algorithm name"),
-    user = Depends(get_current_user)
+    current_user: UserResponse = Depends(get_current_user)
 ):
     """
     Get algorithm details.

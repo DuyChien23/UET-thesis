@@ -14,6 +14,7 @@ from starlette.status import HTTP_401_UNAUTHORIZED, HTTP_403_FORBIDDEN
 
 from src.config.settings import get_settings
 from src.db.repositories.users import UserRepository
+from src.db.session import get_db_session
 
 
 # Security scheme for API authorization
@@ -89,15 +90,13 @@ def decode_token(token: str) -> Dict[str, Any]:
 
 
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Security(security),
-    user_repo: UserRepository = Depends()
+    credentials: HTTPAuthorizationCredentials = Security(security)
 ):
     """
     Get the current authenticated user.
     
     Args:
         credentials (HTTPAuthorizationCredentials): The authentication credentials
-        user_repo (UserRepository): The user repository
         
     Returns:
         The authenticated user
@@ -114,6 +113,10 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"}
         )
     
+    # Get a session and create a repository
+    session = await get_db_session()
+    user_repo = UserRepository(session)
+    
     user = await user_repo.get_by_id(token_data["sub"])
     
     if not user:
@@ -123,7 +126,7 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"}
         )
     
-    if user.status != "active":
+    if not user.is_active:  # Changed from user.status != "active"
         raise HTTPException(
             status_code=HTTP_401_UNAUTHORIZED,
             detail="Inactive user",
@@ -144,9 +147,12 @@ def has_permission(required_permission: str):
         A dependency function that checks the permission
     """
     async def permission_checker(
-        user = Depends(get_current_user),
-        user_repo: UserRepository = Depends()
+        user = Depends(get_current_user)
     ):
+        # Get a session and create a repository
+        session = await get_db_session()
+        user_repo = UserRepository(session)
+        
         has_perm = await user_repo.user_has_permission(user.id, required_permission)
         
         if not has_perm:

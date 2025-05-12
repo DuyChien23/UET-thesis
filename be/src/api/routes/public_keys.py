@@ -8,6 +8,7 @@ from starlette.status import HTTP_400_BAD_REQUEST, HTTP_404_NOT_FOUND, HTTP_201_
 from src.api.schemas.public_keys import PublicKeyCreate, PublicKeyResponse, PublicKeyList, PublicKeyDelete
 from src.services import get_public_key_service
 from src.api.middlewares.auth import get_current_user, has_permission
+from src.api.schemas.users import UserResponse
 
 router = APIRouter(prefix="/public-keys", tags=["public-keys"])
 
@@ -15,7 +16,7 @@ router = APIRouter(prefix="/public-keys", tags=["public-keys"])
 @router.post("/", response_model=PublicKeyResponse, status_code=HTTP_201_CREATED)
 async def create_public_key(
     request: PublicKeyCreate,
-    user = Depends(get_current_user)
+    current_user: UserResponse = Depends(get_current_user)
 ):
     """
     Create a new public key.
@@ -28,7 +29,7 @@ async def create_public_key(
         result = await public_key_service.create_public_key(
             key_data=request.key_data,
             algorithm_name=request.algorithm_name,
-            user_id=str(user.id),
+            user_id=str(current_user.id),
             name=request.name,
             description=request.description,
             curve_name=request.curve_name,
@@ -47,7 +48,7 @@ async def create_public_key(
 @router.get("/{key_id}", response_model=PublicKeyResponse)
 async def get_public_key(
     key_id: str = Path(..., description="The public key ID"),
-    user = Depends(get_current_user)
+    current_user: UserResponse = Depends(get_current_user)
 ):
     """
     Get a public key by ID.
@@ -69,7 +70,7 @@ async def get_public_key(
 
 @router.get("/", response_model=PublicKeyList)
 async def get_user_public_keys(
-    user = Depends(get_current_user)
+    current_user: UserResponse = Depends(get_current_user)
 ):
     """
     Get all public keys for the current user.
@@ -78,7 +79,7 @@ async def get_user_public_keys(
     """
     public_key_service = get_public_key_service()
     
-    keys = await public_key_service.get_user_public_keys(str(user.id))
+    keys = await public_key_service.get_user_public_keys(str(current_user.id))
     
     return {
         "items": keys,
@@ -89,7 +90,7 @@ async def get_user_public_keys(
 @router.delete("/{key_id}", response_model=PublicKeyDelete)
 async def delete_public_key(
     key_id: str = Path(..., description="The public key ID"),
-    user = Depends(get_current_user)
+    current_user: UserResponse = Depends(get_current_user)
 ):
     """
     Delete a public key.
@@ -99,7 +100,7 @@ async def delete_public_key(
     public_key_service = get_public_key_service()
     
     try:
-        success = await public_key_service.delete_public_key(key_id, str(user.id))
+        success = await public_key_service.delete_public_key(key_id, str(current_user.id))
         
         if not success:
             raise HTTPException(
