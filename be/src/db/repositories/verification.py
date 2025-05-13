@@ -7,7 +7,7 @@ from typing import List, Optional, Dict, Any, Tuple
 from datetime import datetime, timedelta
 
 from sqlalchemy import select, and_, or_, func, desc
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import selectinload, joinedload
 
 from src.db.models.verification import VerificationRecord, VerificationStatus, BatchVerification, BatchVerificationItem
@@ -19,15 +19,15 @@ class VerificationRepository(BaseRepository[VerificationRecord]):
     Repository for verification record operations.
     """
     
-    def __init__(self, db_session: AsyncSession):
+    def __init__(self, session_factory: async_sessionmaker):
         """
         Initialize the repository.
         
         Args:
-            db_session (AsyncSession): The database session
+            session_factory (async_sessionmaker): The database session factory
         """
         super().__init__(VerificationRecord)
-        self.db = db_session
+        self.session_factory = session_factory
     
     async def create(
         self,
@@ -74,7 +74,8 @@ class VerificationRepository(BaseRepository[VerificationRecord]):
         if document_id:
             verification_data["document_id"] = document_id
         
-        return await super().create(self.db, verification_data)
+        async with self.session_factory() as session:
+            return await super().create(session, verification_data)
     
     async def get_by_id(self, verification_id: str) -> Optional[VerificationRecord]:
         """
@@ -86,7 +87,8 @@ class VerificationRepository(BaseRepository[VerificationRecord]):
         Returns:
             Optional[VerificationRecord]: The verification record if found, None otherwise
         """
-        return await super().get(self.db, uuid.UUID(verification_id))
+        async with self.session_factory() as session:
+            return await super().get(session, uuid.UUID(verification_id))
     
     async def get_by_user_id(
         self, 
@@ -113,8 +115,9 @@ class VerificationRepository(BaseRepository[VerificationRecord]):
             .limit(limit)
         )
         
-        result = await self.db.execute(query)
-        return result.scalars().all()
+        async with self.session_factory() as session:
+            result = await session.execute(query)
+            return result.scalars().all()
     
     async def get_by_public_key_id(
         self, 
@@ -141,8 +144,9 @@ class VerificationRepository(BaseRepository[VerificationRecord]):
             .limit(limit)
         )
         
-        result = await self.db.execute(query)
-        return result.scalars().all()
+        async with self.session_factory() as session:
+            result = await session.execute(query)
+            return result.scalars().all()
     
     async def get_by_document_id(
         self, 
@@ -169,8 +173,9 @@ class VerificationRepository(BaseRepository[VerificationRecord]):
             .limit(limit)
         )
         
-        result = await self.db.execute(query)
-        return result.scalars().all()
+        async with self.session_factory() as session:
+            result = await session.execute(query)
+            return result.scalars().all()
     
     async def get_by_document_hash(
         self, 
@@ -197,5 +202,6 @@ class VerificationRepository(BaseRepository[VerificationRecord]):
             .limit(limit)
         )
         
-        result = await self.db.execute(query)
-        return result.scalars().all() 
+        async with self.session_factory() as session:
+            result = await session.execute(query)
+            return result.scalars().all() 

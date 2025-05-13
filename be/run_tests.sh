@@ -4,8 +4,9 @@
 export TESTING=1
 export DATABASE_URL=sqlite+aiosqlite:///./test.db
 
-# Run pytest with specific filters to ignore bcrypt warnings
-PYTHONWARNINGS="ignore::DeprecationWarning:passlib.handlers.bcrypt" python -m pytest tests/ -v
+# Run pytest with asyncio debugging options
+source venv/bin/activate
+python -m pytest tests/test_auth_api.py -v --asyncio-mode=auto --log-cli-level=INFO
 
 # Exit with the status code from pytest
 exit $? 

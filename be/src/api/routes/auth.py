@@ -9,6 +9,7 @@ from starlette.status import HTTP_401_UNAUTHORIZED, HTTP_400_BAD_REQUEST, HTTP_4
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import UUID4
 from sqlalchemy.ext.asyncio import AsyncSession
+import logging
 
 from src.api.schemas.users import UserCreate, UserLogin, Token, UserProfile, UserUpdate, PasswordChange, UserResponse
 from src.api.middlewares.auth import create_access_token, get_current_user, authenticate_user, get_current_active_user
@@ -30,17 +31,24 @@ async def register_user(
     
     Creates a new user account with the provided details.
     """
+    logger = logging.getLogger(__name__)
+    logger.info(f"Registering user: {user_data.username}")
+    
     user_repo = UserRepository(db)
     
     # Check if username already exists
-    if await user_repo.get_by_username(user_data.username):
+    existing_user = await user_repo.get_by_username(user_data.username)
+    if existing_user:
+        logger.warning(f"Username already registered: {user_data.username}")
         raise HTTPException(
             status_code=HTTP_400_BAD_REQUEST,
             detail="Username already registered"
         )
     
     # Check if email already exists
-    if await user_repo.get_by_email(user_data.email):
+    existing_email = await user_repo.get_by_email(user_data.email)
+    if existing_email:
+        logger.warning(f"Email already registered: {user_data.email}")
         raise HTTPException(
             status_code=HTTP_400_BAD_REQUEST,
             detail="Email already registered"
@@ -48,35 +56,63 @@ async def register_user(
     
     # Hash the password
     hashed_password = get_password_hash(user_data.password)
+    logger.debug("Password hashed")
     
     # Create the user
-    user = await user_repo.create(db, obj_in={
-        "username": user_data.username,
-        "email": user_data.email,
-        "password_hash": hashed_password,
-        "full_name": user_data.full_name,
-        "status": "active"
-    })
+    try:
+        user = await user_repo.create(db, obj_in={
+            "username": user_data.username,
+            "email": user_data.email,
+            "password_hash": hashed_password,
+            "full_name": user_data.full_name,
+            "status": "active"
+        })
+        logger.info(f"User created with ID: {user.id}")
+    except Exception as e:
+        logger.error(f"Error creating user: {str(e)}")
+        raise HTTPException(
+            status_code=HTTP_400_BAD_REQUEST,
+            detail=f"Could not create user: {str(e)}"
+        )
     
-    # Add default role
-    default_role = await user_repo.get_role_by_name("user")
-    if default_role:
-        await user_repo.add_role_to_user(user.id, default_role.id)
+    # Add default role if it exists
+    user_roles = []
+    try:
+        default_role = await user_repo.get_role_by_name("user")
+        if default_role:
+            logger.debug(f"Adding default 'user' role to user {user.id}")
+            await user_repo.add_role_to_user(user.id, default_role.id)
+            user_roles = ["user"]
+        else:
+            logger.warning("Default 'user' role not found")
+    except Exception as e:
+        logger.error(f"Error adding default role: {str(e)}")
     
-    # Get user with roles
-    user_with_roles = await user_repo.get_user_with_roles(user.id)
+    # Get user with roles or create a basic response
+    user_with_roles = None
+    try:
+        logger.debug(f"Getting user with roles for {user.id}")
+        user_with_roles = await user_repo.get_user_with_roles(user.id)
+        logger.debug(f"User with roles: {user_with_roles}")
+    except Exception as e:
+        logger.error(f"Error getting user with roles: {str(e)}")
+        # If there's an error, construct a basic response
+        user_with_roles = user
+        user_with_roles.roles = []
     
     # Format the response
-    return {
+    response = {
         "id": str(user_with_roles.id),
         "username": user_with_roles.username,
         "email": user_with_roles.email,
         "full_name": user_with_roles.full_name,
         "status": user_with_roles.status,
-        "roles": [role.name for role in user_with_roles.roles],
+        "roles": [role.name for role in getattr(user_with_roles, "roles", [])] if hasattr(user_with_roles, "roles") else user_roles,
         "created_at": user_with_roles.created_at.isoformat(),
         "last_login": user_with_roles.last_login.isoformat() if user_with_roles.last_login else None
     }
+    logger.info(f"Registration completed for {user_data.username}")
+    return response
 
 
 @router.post("/token", response_model=Token)
@@ -169,16 +205,16 @@ async def login_user(
 
 @router.get("/profile", response_model=UserProfile)
 async def get_profile(
-    current_user: UserResponse = Depends(get_current_user)
+    current_user: UserResponse = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session)
 ):
     """
     Get current user profile.
     
     Returns the profile information for the authenticated user.
     """
-    # Get session and repository
-    session = await get_db_session()
-    user_repo = UserRepository(session)
+    # Use the provided db session
+    user_repo = UserRepository(db)
     
     user_with_roles = await user_repo.get_user_with_roles(current_user.id)
     
@@ -188,7 +224,7 @@ async def get_profile(
         "email": user_with_roles.email,
         "full_name": user_with_roles.full_name,
         "status": user_with_roles.status,
-        "roles": [role.name for role in user_with_roles.roles],
+        "roles": [role.name for role in user_with_roles.roles] if hasattr(user_with_roles, "roles") and user_with_roles.roles else [],
         "created_at": user_with_roles.created_at.isoformat(),
         "last_login": user_with_roles.last_login.isoformat() if user_with_roles.last_login else None
     }

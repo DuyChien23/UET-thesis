@@ -12,7 +12,7 @@ from src.services.algorithms import AlgorithmService
 from src.db.repositories.verification import VerificationRepository
 from src.db.repositories.public_keys import PublicKeyRepository
 from src.db.repositories.users import UserRepository
-from src.db.session import get_db_session
+from src.db.session import get_session_factory
 from src.config.settings import get_settings
 from src.cache.redis import get_redis_client
 
@@ -24,25 +24,20 @@ _public_key_service: Optional[PublicKeyService] = None
 _algorithm_service: Optional[AlgorithmService] = None
 
 
-async def init_services(db_session=None, cache_client=None):
+async def init_services(session_factory=None, cache_client=None):
     """
     Initialize all services.
     
     Args:
-        db_session: Optional database session (for testing)
+        session_factory: Optional database session factory (for testing)
         cache_client: Optional Redis cache client
     """
-    global _verification_service, _public_key_service
+    global _verification_service, _public_key_service, _algorithm_service
     
     settings = get_settings()
     
-    # Get DB session and repositories
-    db = db_session if db_session is not None else await get_db_session()
-    
-    # Initialize repositories
-    public_key_repo = PublicKeyRepository(db)
-    verification_repo = VerificationRepository(db)
-    user_repo = UserRepository(db)
+    # Get session factory
+    factory = session_factory if session_factory is not None else get_session_factory()
     
     # Create Redis client if enabled and not provided
     if cache_client is None and settings.redis_enabled:
@@ -51,20 +46,33 @@ async def init_services(db_session=None, cache_client=None):
         except Exception as e:
             logger.warning(f"Failed to initialize Redis client: {str(e)}")
     
-    # Initialize services
-    _public_key_service = PublicKeyService(
-        public_key_repo=public_key_repo,
-        user_repo=user_repo,
-        cache_client=cache_client
-    )
-    
-    _verification_service = VerificationService(
-        public_key_service=_public_key_service,
-        verification_repo=verification_repo,
-        public_key_repo=public_key_repo,
-        user_repo=user_repo,
-        cache_client=cache_client
-    )
+    # Create a temporary session for initializing services
+    async with factory() as db:
+        # Initialize repositories
+        public_key_repo = PublicKeyRepository(factory)
+        verification_repo = VerificationRepository(factory)
+        user_repo = UserRepository(factory)
+        
+        # Initialize services
+        _public_key_service = PublicKeyService(
+            public_key_repo=public_key_repo,
+            user_repo=user_repo,
+            cache_client=cache_client
+        )
+        
+        _verification_service = VerificationService(
+            public_key_service=_public_key_service,
+            verification_repo=verification_repo,
+            public_key_repo=public_key_repo,
+            user_repo=user_repo,
+            cache_client=cache_client
+        )
+        
+        # Initialize algorithm service
+        _algorithm_service = AlgorithmService(
+            db_session=factory,
+            cache_client=cache_client
+        )
     
     logger.info("Services initialized")
 
@@ -108,4 +116,10 @@ def get_algorithm_service() -> AlgorithmService:
     global _algorithm_service
     if not _algorithm_service:
         raise RuntimeError("Algorithm service not initialized")
-    return _algorithm_service 
+    return _algorithm_service
+
+
+def set_algorithm_service(service: AlgorithmService):
+    """Set the algorithm service (for testing)."""
+    global _algorithm_service
+    _algorithm_service = service 

@@ -10,173 +10,98 @@ from httpx import AsyncClient
 import uuid
 import datetime
 from sqlalchemy import insert, select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.main import app
+from src.main import app, startup_event
 from src.config.settings import get_settings
-from src.db.session import get_engine, get_db_session
+from src.db.session import get_engine, get_session_factory
 from src.db.base import Base
 from src.api.middlewares.auth import create_access_token
 from src.utils.password import get_password_hash
 from src.db.models.users import User, Role, user_roles
-from src.algorithms import initialize_algorithms
-from src.services import init_services
-
-# Filter out bcrypt warnings
-warnings.filterwarnings("ignore", category=DeprecationWarning, module="passlib.handlers.bcrypt")
 
 # Set up logging
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger("pytest_fixtures")
+logger = logging.getLogger(__name__)
 
 
-@pytest.fixture(scope="session")
-def test_app():
-    """Create a FastAPI test application."""
-    # Use a test database
-    os.environ["TESTING"] = "1"
-    os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///./test.db"
-    
-    logger.debug("Setting up test app with test database")
-    
-    # Initialize algorithms for testing
-    initialize_algorithms()
-    
-    return app
-
-
-@pytest_asyncio.fixture(scope="session")
-async def initialize_test_services():
-    """Initialize services for testing."""
-    logger.debug("Initializing test services")
-    
-    # Get a session for services
-    session = await get_db_session()
-    
-    # Initialize services
-    await init_services(session)
-    
+@pytest_asyncio.fixture(scope="module")
+async def setup_application():
+    """Initialize the application for testing."""
+    await startup_event()
     yield
-    
-    # Close the session
-    await session.close()
-
-
-@pytest_asyncio.fixture
-async def async_client(test_app, initialize_test_services):
-    """Create an async test client."""
-    logger.debug("Creating async client for testing")
-    base_url = "http://test"
-    
-    # Use AsyncClient for async tests
-    async with AsyncClient(app=test_app, base_url=base_url) as ac:
-        yield ac
+    # Cleanup will happen in the shutdown event handler
 
 
 @pytest_asyncio.fixture(scope="function")
-async def init_test_db():
-    """Initialize test database."""
-    logger.debug("Initializing test database")
-    
-    # Get the engine
-    engine = get_engine()
-    
-    # Create tables
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-        await conn.run_sync(Base.metadata.create_all)
-    
-    logger.debug("Test database initialized")
-    yield
-    
-    # Clean up
-    logger.debug("Cleaning up test database")
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+async def async_client(setup_application):
+    """Create an async client for testing."""
+    logger.debug("Creating async client for testing")
+    async with AsyncClient(app=app, base_url="http://test") as client:
+        yield client
 
 
-@pytest_asyncio.fixture
-async def test_user(init_test_db):
-    """Create a test user directly using SQLAlchemy."""
-    logger.debug("Creating test user using direct SQLAlchemy operations")
-    
-    # Get session
+@pytest_asyncio.fixture(scope="module")
+async def test_user():
+    """Create a test user for auth testing."""
+    # Get a database engine
     engine = get_engine()
+    
+    # Create a user in the database
+    user_id = uuid.uuid4()
+    hashed_password = get_password_hash("testpassword123")
+    now = datetime.datetime.utcnow()
+    
     async with engine.begin() as conn:
-        # Create role
-        role_id = str(uuid.uuid4())
-        now = datetime.datetime.utcnow()
+        # Check if user exists
+        select_stmt = select(User).where(User.username == "testuser")
+        result = await conn.execute(select_stmt)
+        existing_user = result.scalars().first()
         
-        role_stmt = insert(Role).values(
-            id=role_id,
-            name="user",
-            description="Regular user",
-            created_at=now,
-            updated_at=now
-        )
-        await conn.execute(role_stmt)
-        
-        # Create user
-        user_id = str(uuid.uuid4())
-        user_stmt = insert(User).values(
+        if existing_user:
+            return existing_user
+            
+        # Create the user
+        insert_stmt = insert(User).values(
             id=user_id,
             username="testuser",
             email="testuser@example.com",
-            password_hash=get_password_hash("testpassword123"),
+            password_hash=hashed_password,
             full_name="Test User",
             status="active",
-            is_superuser=False,
             created_at=now,
             updated_at=now
         )
-        await conn.execute(user_stmt)
+        await conn.execute(insert_stmt)
         
-        # Create user-role relationship
-        user_role_stmt = insert(user_roles).values(
-            user_id=user_id,
-            role_id=role_id
-        )
-        await conn.execute(user_role_stmt)
+        # Get role ID
+        select_role = select(Role.id).where(Role.name == "user")
+        role_result = await conn.execute(select_role)
+        role_id = role_result.scalar_one_or_none()
         
-        # Get role from database for the association
-        role_select = select(Role).where(Role.id == role_id)
-        role_result = await conn.execute(role_select)
-        role = role_result.fetchone()
-        
-        # Get user from database with all the fields needed
-        user_select = select(User).where(User.id == user_id)
-        user_result = await conn.execute(user_select)
-        user = user_result.fetchone()
+        if role_id:
+            # Create user-role relationship
+            user_role_stmt = insert(user_roles).values(
+                user_id=user_id,
+                role_id=role_id
+            )
+            await conn.execute(user_role_stmt)
     
-    # Create a simple user object with roles for the tests
-    class UserWithRoles:
-        def __init__(self, user, roles):
-            self.id = user.id
-            self.username = user.username
-            self.email = user.email
-            self.full_name = user.full_name
-            self.status = user.status
-            self.is_superuser = user.is_superuser
-            self.created_at = user.created_at
-            self.last_login = user.last_login
-            self.roles = roles
-    
-    # Create role object
-    role_obj = type('Role', (), {'id': role.id, 'name': role.name})
-    
-    user_with_roles = UserWithRoles(user, [role_obj])
-    
-    logger.debug(f"Test user created with ID: {user_with_roles.id}")
-    
-    yield user_with_roles
+    # Fetch the user with SQLAlchemy
+    async with engine.begin() as conn:
+        user_stmt = select(User).where(User.id == user_id)
+        result = await conn.execute(user_stmt)
+        user = result.scalars().first()
+        return user
 
 
-@pytest.fixture
-def auth_token(test_user):
-    """Create authentication token for the test user."""
-    logger.debug(f"Creating auth token for user: {test_user.id}")
-    settings = get_settings()
+@pytest_asyncio.fixture(scope="module")
+async def auth_token(test_user):
+    """Create an auth token for testing."""
+    if test_user is None or isinstance(test_user, str):
+        # Return a dummy token for tests that don't need a valid one
+        return "dummy_token_for_tests"
+        
     token = create_access_token(
-        data={"sub": str(test_user.id)}, 
-        expires_delta=None
+        data={"sub": str(test_user.id), "username": test_user.username}
     )
     return token 

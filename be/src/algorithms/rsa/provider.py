@@ -6,118 +6,17 @@ from cryptography.hazmat.primitives.serialization import load_pem_public_key, lo
 from cryptography.exceptions import InvalidSignature
 
 from src.core.interfaces import SignatureAlgorithmProvider, PublicKeyValidator
+from src.core.registry import get_algorithm_registry
 
 
 class RSAProvider(SignatureAlgorithmProvider, PublicKeyValidator):
     """
-    RSA digital signature algorithm implementation.
+    RSA signature algorithm implementation.
     """
     
     def __init__(self):
-        self._supported_padding_schemes = {
-            "PKCS1v15": {
-                "padding_class": padding.PKCS1v15(),
-                "description": "PKCS#1 v1.5 padding scheme"
-            },
-            "PSS-SHA256": {
-                "padding_class": padding.PSS(
-                    mgf=padding.MGF1(hashes.SHA256()),
-                    salt_length=padding.PSS.MAX_LENGTH
-                ),
-                "hash_algorithm": hashes.SHA256(),
-                "description": "Probabilistic Signature Scheme with SHA-256"
-            },
-            "PSS-SHA384": {
-                "padding_class": padding.PSS(
-                    mgf=padding.MGF1(hashes.SHA384()),
-                    salt_length=padding.PSS.MAX_LENGTH
-                ),
-                "hash_algorithm": hashes.SHA384(),
-                "description": "Probabilistic Signature Scheme with SHA-384"
-            },
-            "PSS-SHA512": {
-                "padding_class": padding.PSS(
-                    mgf=padding.MGF1(hashes.SHA512()),
-                    salt_length=padding.PSS.MAX_LENGTH
-                ),
-                "hash_algorithm": hashes.SHA512(),
-                "description": "Probabilistic Signature Scheme with SHA-512"
-            }
-        }
-        
-        self._supported_key_sizes = [2048, 3072, 4096]
-    
-    def get_algorithm_name(self) -> str:
-        """Get the algorithm name."""
-        return "RSA-SHA256"
-    
-    def get_algorithm_type(self) -> str:
-        """Get the algorithm type."""
-        return "asymmetric"
-    
-    def verify(self, document_hash: str, signature: str, public_key: str, 
-               curve_name: Optional[str] = None, **kwargs) -> bool:
-        """
-        Verifies an RSA signature.
-        
-        Args:
-            document_hash (str): The hash of the document, base64 encoded
-            signature (str): The signature to verify, base64 encoded
-            public_key (str): The PEM or DER encoded public key
-            curve_name (Optional[str]): Not used for RSA
-            **kwargs: Additional parameters such as padding_scheme
-            
-        Returns:
-            bool: True if the signature is valid, False otherwise
-        """
-        padding_scheme = kwargs.get("padding_scheme", "PKCS1v15")
-        
-        if padding_scheme not in self._supported_padding_schemes:
-            raise ValueError(f"Unsupported padding scheme: {padding_scheme}")
-        
-        try:
-            # Decode the signature and hash
-            signature_bytes = base64.b64decode(signature)
-            hash_bytes = base64.b64decode(document_hash)
-            
-            # Load the public key
-            try:
-                public_key_obj = load_pem_public_key(public_key.encode())
-            except ValueError:
-                # Try DER format if PEM fails
-                public_key_obj = load_der_public_key(base64.b64decode(public_key))
-            
-            # Check if it's an RSA key
-            if not isinstance(public_key_obj, rsa.RSAPublicKey):
-                return False
-                
-            # Get the padding scheme configuration
-            padding_info = self._supported_padding_schemes[padding_scheme]
-            padding_obj = padding_info["padding_class"]
-            
-            # If using PSS, we need to specify the hash algorithm
-            if padding_scheme.startswith("PSS-"):
-                hash_algorithm = padding_info["hash_algorithm"]
-                public_key_obj.verify(
-                    signature_bytes,
-                    hash_bytes,
-                    padding_obj,
-                    utils.Prehashed(hash_algorithm)
-                )
-            else:
-                # For PKCS1v15, we don't need to specify the hash algorithm for verification
-                public_key_obj.verify(
-                    signature_bytes,
-                    hash_bytes,
-                    padding_obj
-                )
-            return True
-        except (InvalidSignature, ValueError, TypeError) as e:
-            return False
-    
-    def get_supported_curves(self) -> Dict[str, Dict[str, Any]]:
-        """Get the supported key sizes for this algorithm."""
-        return {
+        # Default parameters - will be overridden by database if available
+        self._supported_curves = {
             "RSA-2048": {
                 "bit_size": 2048,
                 "description": "RSA with 2048-bit key size"
@@ -131,13 +30,109 @@ class RSAProvider(SignatureAlgorithmProvider, PublicKeyValidator):
                 "description": "RSA with 4096-bit key size"
             }
         }
+        
+        # Use SHA-256 by default
+        self._hash_algorithm = hashes.SHA256()
+        
+        # Load parameters from database if available
+        self._load_params_from_db()
+    
+    def _load_params_from_db(self):
+        """Load parameters from the database via registry."""
+        registry = get_algorithm_registry()
+        algorithm_data = registry.get_algorithm_data(self.get_algorithm_name())
+        
+        if not algorithm_data or "curves" not in algorithm_data:
+            return
+        
+        # Map hash algorithm names to cryptography objects
+        hash_map = {
+            "SHA256": hashes.SHA256(),
+            "SHA384": hashes.SHA384(),
+            "SHA512": hashes.SHA512()
+        }
+        
+        # Check if a specific hash algorithm is specified for the algorithm
+        if "hash_algorithm" in algorithm_data:
+            hash_name = algorithm_data["hash_algorithm"]
+            if hash_name in hash_map:
+                self._hash_algorithm = hash_map[hash_name]
+        
+        for name, curve_data in algorithm_data["curves"].items():
+            params = curve_data.get("parameters", {})
+            
+            # Update the local curve definition
+            self._supported_curves[name] = {
+                "bit_size": params.get("bit_size", 2048),
+                "description": curve_data.get("description", "")
+            }
+            
+            # If this curve has a specific hash algorithm
+            if "hash_algorithm" in params:
+                hash_name = params["hash_algorithm"]
+                if hash_name in hash_map:
+                    self._supported_curves[name]["hash_algorithm"] = hash_map[hash_name]
+    
+    def get_algorithm_name(self) -> str:
+        """Get the algorithm name."""
+        return "RSA-SHA256"
+    
+    def get_algorithm_type(self) -> str:
+        """Get the algorithm type."""
+        return "asymmetric"
+    
+    def verify(self, document_hash: str, signature: str, public_key: str, 
+              key_size: Optional[str] = "RSA-2048", **kwargs) -> bool:
+        """
+        Verifies an RSA signature.
+        
+        Args:
+            document_hash (str): The hash of the document, base64 encoded
+            signature (str): The signature to verify, base64 encoded
+            public_key (str): The PEM or DER encoded public key
+            key_size (Optional[str]): The RSA key size to use for verification
+            
+        Returns:
+            bool: True if the signature is valid, False otherwise
+        """
+        try:
+            # Decode the signature and hash
+            signature_bytes = base64.b64decode(signature)
+            hash_bytes = base64.b64decode(document_hash)
+            
+            # Load the public key
+            try:
+                public_key_obj = load_pem_public_key(public_key.encode())
+            except ValueError:
+                # Try DER format if PEM fails
+                public_key_obj = load_der_public_key(base64.b64decode(public_key))
+            
+            # Use PSS padding for more security
+            padding_algorithm = padding.PSS(
+                mgf=padding.MGF1(self._hash_algorithm),
+                salt_length=padding.PSS.MAX_LENGTH
+            )
+            
+            # Verify the signature
+            public_key_obj.verify(
+                signature_bytes,
+                hash_bytes,
+                padding_algorithm,
+                utils.Prehashed(self._hash_algorithm)
+            )
+            return True
+        except (InvalidSignature, ValueError, TypeError) as e:
+            return False
+    
+    def get_supported_curves(self) -> Dict[str, Dict[str, Any]]:
+        """Get the supported key sizes for RSA."""
+        return self._supported_curves.copy()
     
     def get_curve_parameters(self, curve_name: str) -> Dict[str, Any]:
-        # Reuse this method for padding schemes in RSA
-        if curve_name not in self._supported_padding_schemes:
-            raise ValueError(f"Unsupported padding scheme: {curve_name}")
+        if curve_name not in self._supported_curves:
+            raise ValueError(f"Unsupported RSA key size: {curve_name}")
         
-        return {k: v for k, v in self._supported_padding_schemes[curve_name].items() if k != "padding_class"}
+        return self._supported_curves[curve_name].copy()
     
     def validate_public_key(self, public_key: str, curve_name: Optional[str] = None, **kwargs) -> bool:
         """
@@ -145,14 +140,11 @@ class RSAProvider(SignatureAlgorithmProvider, PublicKeyValidator):
         
         Args:
             public_key (str): The public key to validate
-            curve_name (Optional[str]): Not used for RSA
-            **kwargs: Additional parameters such as min_key_size
+            curve_name (Optional[str]): The key size (not strictly required for validation)
             
         Returns:
             bool: True if the public key is valid, False otherwise
         """
-        min_key_size = kwargs.get("min_key_size", 2048)
-        
         try:
             # Try to load the key in PEM format
             try:
@@ -164,13 +156,18 @@ class RSAProvider(SignatureAlgorithmProvider, PublicKeyValidator):
             # Check if it's an RSA key
             if not isinstance(key, rsa.RSAPublicKey):
                 return False
-                
-            # Check key size
-            key_size = key.key_size
-            return key_size >= min_key_size
+            
+            # If curve_name (key size) is specified, check if it matches
+            if curve_name:
+                key_size = key.key_size
+                expected_size = self._supported_curves.get(curve_name, {}).get("bit_size")
+                if expected_size and key_size != expected_size:
+                    return False
+            
+            return True
         except Exception:
             return False
     
     def get_supported_formats(self) -> List[str]:
         """Get the supported key formats."""
-        return ["PEM", "DER", "JWK", "PKCS#1"] 
+        return ["PEM", "DER", "JWK"] 

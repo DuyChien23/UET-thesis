@@ -11,6 +11,7 @@ from jose import jwt, JWTError
 from fastapi import Depends, HTTPException, Security
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from starlette.status import HTTP_401_UNAUTHORIZED, HTTP_403_FORBIDDEN
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.config.settings import get_settings
 from src.db.repositories.users import UserRepository
@@ -119,13 +120,15 @@ async def authenticate_user(username: str, password: str, db):
 
 
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Security(security)
+    credentials: HTTPAuthorizationCredentials = Security(security),
+    db: AsyncSession = Depends(get_db_session)
 ):
     """
     Get the current authenticated user.
     
     Args:
         credentials (HTTPAuthorizationCredentials): The authentication credentials
+        db (AsyncSession): Database session
         
     Returns:
         The authenticated user
@@ -142,9 +145,8 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"}
         )
     
-    # Get a session and create a repository
-    session = await get_db_session()
-    user_repo = UserRepository(session)
+    # Create a repository with the provided db session
+    user_repo = UserRepository(db)
     
     user = await user_repo.get_by_id(token_data["sub"])
     
@@ -194,11 +196,11 @@ def has_permission(required_permission: str):
         A dependency function that checks the permission
     """
     async def permission_checker(
-        user = Depends(get_current_user)
+        user = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db_session)
     ):
-        # Get a session and create a repository
-        session = await get_db_session()
-        user_repo = UserRepository(session)
+        # Create a repository with the provided db session
+        user_repo = UserRepository(db)
         
         has_perm = await user_repo.user_has_permission(user.id, required_permission)
         

@@ -1,8 +1,9 @@
 from typing import Optional, List, Dict, Any
 import uuid
 from sqlalchemy import select, and_, func
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import selectinload
+import logging
 
 from src.db.repositories.base import BaseRepository
 from src.db.models.users import User, Role, Permission, user_roles, role_permissions
@@ -13,15 +14,15 @@ class UserRepository(BaseRepository[User]):
     Repository for user operations
     """
     
-    def __init__(self, db_session: AsyncSession):
+    def __init__(self, session_factory: async_sessionmaker):
         """
         Initialize the repository.
         
         Args:
-            db_session (AsyncSession): Database session
+            session_factory (async_sessionmaker): Database session factory
         """
         super().__init__(User)
-        self.db = db_session
+        self.session_factory = session_factory
     
     async def get_by_username(self, username: str) -> Optional[User]:
         """
@@ -34,8 +35,9 @@ class UserRepository(BaseRepository[User]):
             Optional[User]: The user if found, None otherwise
         """
         query = select(User).where(User.username == username)
-        result = await self.db.execute(query)
-        return result.scalars().first()
+        async with self.session_factory() as session:
+            result = await session.execute(query)
+            return result.scalars().first()
     
     async def get_role_by_name(self, role_name: str) -> Optional[Role]:
         """
@@ -48,8 +50,9 @@ class UserRepository(BaseRepository[User]):
             Optional[Role]: The role if found, None otherwise
         """
         query = select(Role).where(Role.name == role_name)
-        result = await self.db.execute(query)
-        return result.scalars().first()
+        async with self.session_factory() as session:
+            result = await session.execute(query)
+            return result.scalars().first()
     
     async def get_by_email(self, email: str) -> Optional[User]:
         """
@@ -62,8 +65,9 @@ class UserRepository(BaseRepository[User]):
             Optional[User]: The user if found, None otherwise
         """
         query = select(User).where(User.email == email)
-        result = await self.db.execute(query)
-        return result.scalars().first()
+        async with self.session_factory() as session:
+            result = await session.execute(query)
+            return result.scalars().first()
     
     async def get_active_users(
         self, 
@@ -82,8 +86,9 @@ class UserRepository(BaseRepository[User]):
             List[User]: List of active users
         """
         query = select(User).where(User.status == "active").offset(skip).limit(limit)
-        result = await self.db.execute(query)
-        return result.scalars().all()
+        async with self.session_factory() as session:
+            result = await session.execute(query)
+            return result.scalars().all()
     
     async def get_user_with_roles(self, user_id: Any) -> Optional[User]:
         """
@@ -102,9 +107,32 @@ class UserRepository(BaseRepository[User]):
             except ValueError:
                 return None
         
-        query = select(User).where(User.id == user_id).options(selectinload(User.roles))
-        result = await self.db.execute(query)
-        return result.scalars().first()
+        logger = logging.getLogger(__name__)
+        async with self.session_factory() as session:
+            try:
+                query = select(User).where(User.id == user_id).options(selectinload(User.roles))
+                result = await session.execute(query)
+                return result.scalars().first()
+            except Exception as e:
+                logger.error(f"Error in get_user_with_roles for {user_id}: {str(e)}")
+                
+                # Try a simpler query without loading roles
+                try:
+                    user_query = select(User).where(User.id == user_id)
+                    user_result = await session.execute(user_query)
+                    user = user_result.scalars().first()
+                    
+                    if user:
+                        # Get roles separately
+                        roles_query = select(Role).join(user_roles).where(user_roles.c.user_id == user_id)
+                        roles_result = await session.execute(roles_query)
+                        roles = roles_result.scalars().all()
+                        user.roles = roles
+                        return user
+                    return None
+                except Exception as inner_e:
+                    logger.error(f"Failed to get user with backup query: {str(inner_e)}")
+                    return None
     
     async def update_last_login(self, user_id: Any) -> None:
         """
@@ -120,11 +148,12 @@ class UserRepository(BaseRepository[User]):
             except ValueError:
                 return
         
-        user = await self.get(self.db, user_id)
-        if user:
-            user.last_login = func.now()
-            self.db.add(user)
-            await self.db.commit()
+        async with self.session_factory() as session:
+            user = await self.get(session, user_id)
+            if user:
+                user.last_login = func.now()
+                session.add(user)
+                await session.commit()
     
     async def add_role_to_user(
         self, 
@@ -154,28 +183,29 @@ class UserRepository(BaseRepository[User]):
             except ValueError:
                 return False
         
-        # Check if user and role exist
-        user = await self.get(self.db, user_id)
-        if not user:
-            return False
-        
-        # Get the role
-        query = select(Role).where(Role.id == role_id)
-        result = await self.db.execute(query)
-        role = result.scalars().first()
-        if not role:
-            return False
-        
-        # Check if the role is already assigned
-        for user_role in user.roles:
-            if user_role.id == role_id:
-                return True  # Already assigned
-        
-        # Add the role
-        user.roles.append(role)
-        self.db.add(user)
-        await self.db.commit()
-        return True
+        async with self.session_factory() as session:
+            # Check if user and role exist
+            user = await self.get(session, user_id)
+            if not user:
+                return False
+            
+            # Get the role
+            query = select(Role).where(Role.id == role_id)
+            result = await session.execute(query)
+            role = result.scalars().first()
+            if not role:
+                return False
+            
+            # Check if the role is already assigned
+            for user_role in user.roles:
+                if user_role.id == role_id:
+                    return True  # Already assigned
+            
+            # Add the role
+            user.roles.append(role)
+            session.add(user)
+            await session.commit()
+            return True
     
     async def remove_role_from_user(
         self, 
@@ -219,8 +249,9 @@ class UserRepository(BaseRepository[User]):
                 break
         
         if removed:
-            self.db.add(user)
-            await self.db.commit()
+            async with self.session_factory() as session:
+                session.add(user)
+                await session.commit()
         
         return removed
     
@@ -262,9 +293,10 @@ class UserRepository(BaseRepository[User]):
             )
         )
         
-        result = await self.db.execute(query)
-        count = result.scalar_one()
-        return count > 0
+        async with self.session_factory() as session:
+            result = await session.execute(query)
+            count = result.scalar_one()
+            return count > 0
     
     async def get_by_id(self, user_id: Any) -> Optional[User]:
         """
@@ -284,8 +316,9 @@ class UserRepository(BaseRepository[User]):
                 return None
         
         query = select(User).where(User.id == user_id)
-        result = await self.db.execute(query)
-        return result.scalars().first()
+        async with self.session_factory() as session:
+            result = await session.execute(query)
+            return result.scalars().first()
 
 
 class RoleRepository(BaseRepository[Role]):

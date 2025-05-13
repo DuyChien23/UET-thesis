@@ -96,15 +96,27 @@ def get_session_factory() -> async_sessionmaker:
 
 async def get_db_session() -> AsyncSession:
     """
-    Get a new database session.
+    Get a database session.
     
     Returns:
-        AsyncSession: A new database session
+        AsyncSession: A database session
     """
-    session_factory = get_session_factory()
-    async with session_factory() as session:
-        logger.debug("Created new database session")
-        return session
+    logger.debug("Creating database session")
+    session = None
+    try:
+        # Create a new session
+        engine = get_engine()
+        session = AsyncSession(engine)
+        yield session
+    except Exception as e:
+        logger.error(f"Error creating database session: {e}")
+        if session:
+            await session.rollback()
+        raise
+    finally:
+        if session:
+            logger.debug("Closing database session")
+            await session.close()
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:

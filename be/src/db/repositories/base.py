@@ -37,9 +37,13 @@ class BaseRepository(Generic[ModelType]):
         """
         db_obj = self.model(**obj_in)
         db.add(db_obj)
-        await db.commit()
-        await db.refresh(db_obj)
-        return db_obj
+        try:
+            await db.commit()
+            await db.refresh(db_obj)
+            return db_obj
+        except Exception as e:
+            await db.rollback()
+            raise e
     
     async def get(self, db: AsyncSession, id: uuid.UUID) -> Optional[ModelType]:
         """

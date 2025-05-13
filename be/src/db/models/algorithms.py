@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, ForeignKey, Text, JSON
+from sqlalchemy import Column, String, ForeignKey, Text, JSON, Boolean
 from sqlalchemy.orm import relationship
 
 from ..base import Base, UUID, JSONB
@@ -13,6 +13,13 @@ class Algorithm(Base):
     name = Column(String(32), unique=True, nullable=False, index=True)
     type = Column(String(16), nullable=False)
     description = Column(Text, nullable=True)
+    is_default = Column(Boolean, default=False, nullable=False)
+    status = Column(
+        String(16), 
+        nullable=False, 
+        default="enabled", 
+        server_default="enabled"
+    )
     
     # Relationships
     curves = relationship("Curve", back_populates="algorithm", cascade="all, delete-orphan")

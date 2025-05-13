@@ -6,7 +6,7 @@ import uuid
 from typing import List, Optional, Dict, Any
 
 from sqlalchemy import select, and_, or_
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import selectinload
 
 from src.db.models.public_keys import PublicKey
@@ -18,15 +18,15 @@ class PublicKeyRepository(BaseRepository[PublicKey]):
     Repository for public key operations.
     """
     
-    def __init__(self, db_session: AsyncSession):
+    def __init__(self, session_factory: async_sessionmaker):
         """
         Initialize the repository.
         
         Args:
-            db_session (AsyncSession): The database session
+            session_factory (async_sessionmaker): The database session factory
         """
         super().__init__(PublicKey)
-        self.db = db_session
+        self.session_factory = session_factory
     
     async def create(
         self,
@@ -63,7 +63,8 @@ class PublicKeyRepository(BaseRepository[PublicKey]):
             "key_metadata": metadata or {}
         }
         
-        return await super().create(self.db, public_key_data)
+        async with self.session_factory() as session:
+            return await super().create(session, public_key_data)
     
     async def get_by_id(self, key_id: str) -> Optional[PublicKey]:
         """
@@ -75,7 +76,8 @@ class PublicKeyRepository(BaseRepository[PublicKey]):
         Returns:
             Optional[PublicKey]: The public key if found, None otherwise
         """
-        return await super().get(self.db, uuid.UUID(key_id))
+        async with self.session_factory() as session:
+            return await super().get(session, uuid.UUID(key_id))
     
     async def get_by_user_id(
         self, 
@@ -102,8 +104,9 @@ class PublicKeyRepository(BaseRepository[PublicKey]):
             .limit(limit)
         )
         
-        result = await self.db.execute(query)
-        return result.scalars().all()
+        async with self.session_factory() as session:
+            result = await session.execute(query)
+            return result.scalars().all()
     
     async def get_by_algorithm(
         self, 
@@ -130,8 +133,9 @@ class PublicKeyRepository(BaseRepository[PublicKey]):
             .limit(limit)
         )
         
-        result = await self.db.execute(query)
-        return result.scalars().all()
+        async with self.session_factory() as session:
+            result = await session.execute(query)
+            return result.scalars().all()
     
     async def get_by_curve(
         self, 
@@ -158,8 +162,9 @@ class PublicKeyRepository(BaseRepository[PublicKey]):
             .limit(limit)
         )
         
-        result = await self.db.execute(query)
-        return result.scalars().all()
+        async with self.session_factory() as session:
+            result = await session.execute(query)
+            return result.scalars().all()
     
     async def delete(self, key_id: str) -> bool:
         """
@@ -171,7 +176,8 @@ class PublicKeyRepository(BaseRepository[PublicKey]):
         Returns:
             bool: True if the key was deleted, False otherwise
         """
-        return await super().delete(self.db, uuid.UUID(key_id))
+        async with self.session_factory() as session:
+            return await super().delete(session, uuid.UUID(key_id))
     
     async def get_user_keys(
         self, 
@@ -203,8 +209,9 @@ class PublicKeyRepository(BaseRepository[PublicKey]):
         query = query.offset(skip).limit(limit)
         
         # Execute query
-        result = await self.db.execute(query)
-        return result.scalars().all()
+        async with self.session_factory() as session:
+            result = await session.execute(query)
+            return result.scalars().all()
     
     async def get_by_fingerprint(self, fingerprint: str) -> Optional[PublicKey]:
         """
@@ -217,8 +224,10 @@ class PublicKeyRepository(BaseRepository[PublicKey]):
             Optional[PublicKey]: The public key if found, None otherwise
         """
         query = select(PublicKey).where(PublicKey.fingerprint == fingerprint)
-        result = await self.db.execute(query)
-        return result.scalars().first()
+        
+        async with self.session_factory() as session:
+            result = await session.execute(query)
+            return result.scalars().first()
     
     async def search_keys(
         self,
@@ -251,7 +260,7 @@ class PublicKeyRepository(BaseRepository[PublicKey]):
         
         if user_id:
             filters.append(PublicKey.user_id == user_id)
-            
+        
         if algorithm_name:
             filters.append(PublicKey.algorithm_name == algorithm_name)
             
@@ -260,14 +269,14 @@ class PublicKeyRepository(BaseRepository[PublicKey]):
             
         if name_contains:
             filters.append(PublicKey.name.ilike(f"%{name_contains}%"))
-        
-        # Apply all filters
+            
         if filters:
             query = query.where(and_(*filters))
-        
+            
         # Add pagination
-        query = query.offset(skip).limit(limit)
+        query = query.order_by(PublicKey.created_at.desc()).offset(skip).limit(limit)
         
         # Execute query
-        result = await self.db.execute(query)
-        return result.scalars().all() 
+        async with self.session_factory() as session:
+            result = await session.execute(query)
+            return result.scalars().all() 

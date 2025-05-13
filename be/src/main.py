@@ -10,9 +10,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from src.config.settings import get_settings
 from src.config.logging import setup_logging
-from src.db.session import get_engine, get_db_session, close_db_connection
+from src.db.session import get_engine, get_session_factory, close_db_connection
 from src.db.base import Base, load_all_models
-from src.algorithms import initialize_algorithms
+from src.algorithms import initialize_algorithms, load_algorithms_from_db
+from src.core.registry import get_algorithm_registry
 from src.services import init_services, shutdown_services
 from src.cache import init_cache, shutdown_cache, get_cache_client
 from src.api.routes import api_router
@@ -69,14 +70,31 @@ async def startup_event():
     # Initialize cache
     cache_client = await init_cache(settings.redis_url)
     
-    # Initialize database session
-    db_session = await get_db_session()
+    # Initialize database session factory
+    session_factory = get_session_factory()
     
     # Initialize algorithm providers
-    initialize_algorithms()
+    logger.info("Initializing algorithm providers")
+    algorithm_providers = initialize_algorithms()
+    
+    # Load algorithm data from database
+    logger.info("Loading algorithms and curves from database")
+    # Create a temporary session for loading algorithms
+    async with session_factory() as db_session:
+        algorithms_data = await load_algorithms_from_db()
+    
+    # Register the loaded data with the registry
+    if algorithms_data:
+        registry = get_algorithm_registry()
+        registry.set_db_data(algorithms_data)
+        
+        # Set ECDSA as the default algorithm if available
+        if "ECDSA" in algorithm_providers:
+            registry.set_default_algorithm("ECDSA")
     
     # Initialize services
-    await init_services(db_session, cache_client)
+    # Use the session factory for services initialization
+    await init_services(session_factory, cache_client)
     
     logger.info("Application startup complete")
 

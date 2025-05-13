@@ -18,24 +18,45 @@ class AlgorithmRegistry:
         with cls._lock:
             if cls._instance is None:
                 cls._instance = super(AlgorithmRegistry, cls).__new__(cls)
-                cls._instance._algorithms: Dict[str, SignatureAlgorithmProvider] = {}
-                cls._instance._default_algorithm: Optional[str] = None
+                cls._instance._algorithms = {}
+                cls._instance._default_algorithm = None
+                cls._instance._loaded_db_data = {}
             return cls._instance
     
-    def register_algorithm(self, provider: SignatureAlgorithmProvider) -> None:
+    @property
+    def providers(self) -> Dict[str, SignatureAlgorithmProvider]:
+        """Get all registered algorithm providers."""
+        return self._algorithms.copy()
+    
+    @property
+    def db_data(self) -> Dict[str, Dict]:
+        """Get the database data for all algorithms."""
+        return self._loaded_db_data
+    
+    def set_db_data(self, data: Dict[str, Dict]) -> None:
+        """
+        Set the database data for the algorithms.
+        
+        Args:
+            data: Dictionary with algorithm data from the database
+        """
+        self._loaded_db_data = data
+        logger.info(f"Loaded data for {len(data)} algorithms from database")
+    
+    def register(self, algorithm_name: str, provider: SignatureAlgorithmProvider) -> None:
         """
         Register a new algorithm provider in the registry.
         
         Args:
-            provider (SignatureAlgorithmProvider): The algorithm provider to register
+            algorithm_name: The name of the algorithm
+            provider: The algorithm provider to register
             
         Raises:
             ValueError: If an algorithm with the same name is already registered
         """
-        algorithm_name = provider.get_algorithm_name()
         if algorithm_name in self._algorithms:
-            raise ValueError(f"Algorithm '{algorithm_name}' is already registered")
-        
+            logger.warning(f"Algorithm '{algorithm_name}' is already registered, replacing")
+            
         self._algorithms[algorithm_name] = provider
         logger.info(f"Registered algorithm provider: {algorithm_name}")
         
@@ -44,12 +65,25 @@ class AlgorithmRegistry:
             self._default_algorithm = algorithm_name
             logger.info(f"Set default algorithm to: {algorithm_name}")
     
+    def register_algorithm(self, provider: SignatureAlgorithmProvider) -> None:
+        """
+        Register a new algorithm provider in the registry using its name.
+        
+        Args:
+            provider: The algorithm provider to register
+            
+        Raises:
+            ValueError: If an algorithm with the same name is already registered
+        """
+        algorithm_name = provider.get_algorithm_name()
+        self.register(algorithm_name, provider)
+    
     def unregister_algorithm(self, algorithm_name: str) -> None:
         """
         Unregister an algorithm provider from the registry.
         
         Args:
-            algorithm_name (str): The name of the algorithm to unregister
+            algorithm_name: The name of the algorithm to unregister
             
         Raises:
             KeyError: If the algorithm is not registered
@@ -69,10 +103,10 @@ class AlgorithmRegistry:
         Get an algorithm provider by name.
         
         Args:
-            algorithm_name (str): The name of the algorithm
+            algorithm_name: The name of the algorithm
             
         Returns:
-            SignatureAlgorithmProvider: The algorithm provider
+            The algorithm provider
             
         Raises:
             KeyError: If the algorithm is not registered
@@ -87,8 +121,7 @@ class AlgorithmRegistry:
         Get the default algorithm provider.
         
         Returns:
-            Optional[SignatureAlgorithmProvider]: The default algorithm provider,
-            or None if no algorithms are registered
+            The default algorithm provider, or None if no algorithms are registered
         """
         if self._default_algorithm is None:
             return None
@@ -100,7 +133,7 @@ class AlgorithmRegistry:
         Set the default algorithm.
         
         Args:
-            algorithm_name (str): The name of the algorithm to set as default
+            algorithm_name: The name of the algorithm to set as default
             
         Raises:
             KeyError: If the algorithm is not registered
@@ -116,7 +149,7 @@ class AlgorithmRegistry:
         Get a list of all registered algorithm names.
         
         Returns:
-            List[str]: A list of all registered algorithm names
+            A list of all registered algorithm names
         """
         return list(self._algorithms.keys())
     
@@ -125,9 +158,38 @@ class AlgorithmRegistry:
         Get a dictionary of all registered algorithm providers.
         
         Returns:
-            Dict[str, SignatureAlgorithmProvider]: A dictionary mapping algorithm names to providers
+            A dictionary mapping algorithm names to providers
         """
         return self._algorithms.copy()
+    
+    def get_algorithm_data(self, algorithm_name: str) -> Optional[Dict]:
+        """
+        Get the database data for an algorithm.
+        
+        Args:
+            algorithm_name: The name of the algorithm
+            
+        Returns:
+            The algorithm data from the database, or None if not found
+        """
+        return self._loaded_db_data.get(algorithm_name)
+    
+    def get_curve_data(self, algorithm_name: str, curve_name: str) -> Optional[Dict]:
+        """
+        Get the database data for a curve.
+        
+        Args:
+            algorithm_name: The name of the algorithm
+            curve_name: The name of the curve
+            
+        Returns:
+            The curve data from the database, or None if not found
+        """
+        algorithm_data = self.get_algorithm_data(algorithm_name)
+        if not algorithm_data or "curves" not in algorithm_data:
+            return None
+        
+        return algorithm_data["curves"].get(curve_name)
 
 
 # Factory function to get the singleton instance
@@ -136,7 +198,7 @@ def get_algorithm_registry() -> AlgorithmRegistry:
     Get the singleton instance of the algorithm registry.
     
     Returns:
-        AlgorithmRegistry: The singleton instance
+        The singleton instance
     """
     return AlgorithmRegistry()
 
@@ -149,11 +211,10 @@ def get_algorithm_provider(algorithm_name: str) -> Optional[SignatureAlgorithmPr
     having to handle the KeyError exception.
     
     Args:
-        algorithm_name (str): The name of the algorithm
+        algorithm_name: The name of the algorithm
         
     Returns:
-        Optional[SignatureAlgorithmProvider]: The algorithm provider, 
-        or None if the algorithm is not registered
+        The algorithm provider, or None if the algorithm is not registered
     """
     registry = get_algorithm_registry()
     try:

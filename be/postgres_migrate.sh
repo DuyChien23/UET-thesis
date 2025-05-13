@@ -31,5 +31,11 @@ echo "Using CLI tool to create tables..."
 $PYTHON_CMD -m src.cli create-tables
 
 echo "Database tables created successfully!"
+
+# Seed initial data
+echo "Seeding database with initial data (algorithms, curves, roles, admin user)..."
+$PYTHON_CMD -m src.cli seed-data
+
+echo "Database seeding completed successfully!"
 echo "You can now run the application with PostgreSQL using:"
 echo "./postgres_run.sh" 

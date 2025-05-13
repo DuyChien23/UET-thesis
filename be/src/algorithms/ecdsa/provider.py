@@ -7,6 +7,7 @@ from cryptography.hazmat.primitives.serialization import load_pem_public_key, lo
 from cryptography.exceptions import InvalidSignature
 
 from src.core.interfaces import SignatureAlgorithmProvider, PublicKeyValidator
+from src.core.registry import get_algorithm_registry
 
 
 class ECDSAProvider(SignatureAlgorithmProvider, PublicKeyValidator):
@@ -15,6 +16,7 @@ class ECDSAProvider(SignatureAlgorithmProvider, PublicKeyValidator):
     """
     
     def __init__(self):
+        # Default curve definitions - will be overridden by database if available
         self._supported_curves = {
             "secp256k1": {
                 "curve_class": ec.SECP256K1,
@@ -41,6 +43,58 @@ class ECDSAProvider(SignatureAlgorithmProvider, PublicKeyValidator):
                 "description": "NIST curve P-521, for very high security requirements"
             }
         }
+        
+        # Load curves from database if available
+        self._load_curves_from_db()
+    
+    def _load_curves_from_db(self):
+        """Load curves from the database via registry."""
+        registry = get_algorithm_registry()
+        algorithm_data = registry.get_algorithm_data(self.get_algorithm_name())
+        
+        if not algorithm_data or "curves" not in algorithm_data:
+            return
+        
+        # Map hash algorithm names to cryptography objects
+        hash_map = {
+            "SHA256": hashes.SHA256(),
+            "SHA384": hashes.SHA384(),
+            "SHA512": hashes.SHA512()
+        }
+        
+        # Map curve names to cryptography curve classes
+        curve_class_map = {
+            "secp256k1": ec.SECP256K1,
+            "secp256r1": ec.SECP256R1,
+            "secp384r1": ec.SECP384R1,
+            "secp521r1": ec.SECP521R1
+        }
+        
+        for name, curve_data in algorithm_data["curves"].items():
+            params = curve_data.get("parameters", {})
+            bit_size = params.get("bit_size", 256)
+            
+            # Determine hash algorithm based on bit size or explicit name
+            hash_algo_name = params.get("hash_algorithm", "")
+            if hash_algo_name and hash_algo_name in hash_map:
+                hash_algo = hash_map[hash_algo_name]
+            elif bit_size <= 256:
+                hash_algo = hashes.SHA256()
+            elif bit_size <= 384:
+                hash_algo = hashes.SHA384()
+            else:
+                hash_algo = hashes.SHA512()
+            
+            # Get the curve class from the map or default to secp256r1
+            curve_class = curve_class_map.get(name, ec.SECP256R1)
+            
+            # Update the local curve definition
+            self._supported_curves[name] = {
+                "curve_class": curve_class,
+                "hash_algorithm": hash_algo,
+                "bit_size": bit_size,
+                "description": curve_data.get("description", "")
+            }
     
     def get_algorithm_name(self) -> str:
         """Get the algorithm name."""
