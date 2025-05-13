@@ -37,6 +37,20 @@ class UserRepository(BaseRepository[User]):
         result = await self.db.execute(query)
         return result.scalars().first()
     
+    async def get_role_by_name(self, role_name: str) -> Optional[Role]:
+        """
+        Get a role by name.
+        
+        Args:
+            role_name (str): Role name to search for
+            
+        Returns:
+            Optional[Role]: The role if found, None otherwise
+        """
+        query = select(Role).where(Role.name == role_name)
+        result = await self.db.execute(query)
+        return result.scalars().first()
+    
     async def get_by_email(self, email: str) -> Optional[User]:
         """
         Get a user by email.
@@ -204,6 +218,25 @@ class UserRepository(BaseRepository[User]):
         result = await self.db.execute(query)
         count = result.scalar_one()
         return count > 0
+    
+    async def get_by_id(self, user_id: str) -> Optional[User]:
+        """
+        Get a user by ID.
+        
+        Args:
+            user_id (str): The user ID
+            
+        Returns:
+            Optional[User]: The user if found, None otherwise
+        """
+        try:
+            user_uuid = uuid.UUID(user_id)
+        except ValueError:
+            return None
+        
+        query = select(User).where(User.id == user_uuid)
+        result = await self.db.execute(query)
+        return result.scalars().first()
 
 
 class RoleRepository(BaseRepository[Role]):

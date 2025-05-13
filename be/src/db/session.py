@@ -4,6 +4,8 @@ Provides functions to create and manage SQLAlchemy async database sessions.
 """
 
 import logging
+import os
+import socket
 from typing import AsyncGenerator, Optional
 
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine, AsyncSession
@@ -33,16 +35,32 @@ def get_engine() -> AsyncEngine:
         settings = get_settings()
         
         if settings.mock_services:
-            logger.info("Creating in-memory SQLite database engine for mock mode")
+            # Create a database directory if it doesn't exist
+            os.makedirs('data', exist_ok=True)
+            
+            logger.info("Creating file-based SQLite database engine for mock mode")
             _engine = create_async_engine(
-                "sqlite+aiosqlite:///:memory:",
+                "sqlite+aiosqlite:///data/test.db",
                 echo=settings.debug,
                 future=True,
             )
         else:
-            logger.info(f"Creating database engine with URL: {settings.database_url}")
+            # Determine if running in Docker or locally
+            database_url = settings.database_url
+            
+            # If the host is 'postgres', check if we're running outside of Docker
+            if 'postgres:5432' in database_url:
+                # Check if the 'postgres' hostname is not accessible (running locally)
+                try:
+                    socket.gethostbyname('postgres')
+                    logger.info("Running inside Docker network, using 'postgres' as host")
+                except socket.gaierror:
+                    logger.info("Running locally, replacing 'postgres' with 'localhost' in database URL")
+                    database_url = database_url.replace('postgres:5432', 'localhost:5432')
+            
+            logger.info(f"Creating database engine with URL: {database_url}")
             _engine = create_async_engine(
-                settings.database_url,
+                database_url,
                 echo=settings.debug,
                 future=True,
                 poolclass=NullPool if settings.debug else None,

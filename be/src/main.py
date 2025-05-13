@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.config.settings import get_settings
 from src.config.logging import setup_logging
 from src.db.session import get_engine, get_db_session, close_db_connection
-from src.db.base import Base
+from src.db.base import Base, load_all_models
 from src.algorithms import initialize_algorithms
 from src.services import init_services, shutdown_services
 from src.cache import init_cache, shutdown_cache, get_cache_client
@@ -24,8 +24,11 @@ logger = logging.getLogger(__name__)
 # Create the FastAPI application
 app = FastAPI(
     title="Digital Signature Verification API",
-    description="API for verifying digital signatures",
-    version="1.0.0"
+    description="API for verifying digital signatures using various cryptographic algorithms",
+    version="1.0.0",
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json"
 )
 
 # Add CORS middleware
@@ -47,13 +50,21 @@ async def startup_event():
     
     settings = get_settings()
     
+    # Load all models
+    logger.info("Loading all database models")
+    load_all_models()
+    
     # Initialize database
     engine = get_engine()
     
     # Create database tables
     # In production, use migrations instead
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    if settings.auto_create_tables:
+        logger.info("Creating database tables (auto_create_tables=True)")
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+    else:
+        logger.info("Skipping auto table creation (auto_create_tables=False)")
     
     # Initialize cache
     cache_client = await init_cache(settings.redis_url)
@@ -103,10 +114,19 @@ async def root():
     return {
         "message": "Digital Signature Verification API",
         "version": "1.0.0",
-        "docs_url": "/docs"
+        "docs_url": "/docs",
+        "redoc_url": "/redoc",
+        "description": "API for verifying digital signatures using various cryptographic algorithms",
+        "endpoints": {
+            "swagger_ui": "/docs",
+            "redoc": "/redoc",
+            "openapi_schema": "/openapi.json",
+            "health_check": "/health",
+            "api_base": "/api/v1"
+        }
     }
 
-
+# Đảm bảo rằng tất cả các bảng được tạo khi khởi động với uvicorn
 if __name__ == "__main__":
     import uvicorn
     

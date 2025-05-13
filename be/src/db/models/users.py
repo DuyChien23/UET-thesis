@@ -49,9 +49,20 @@ class User(Base):
     roles = relationship("Role", secondary=user_roles, back_populates="users")
     public_keys = relationship("PublicKey", back_populates="user", cascade="all, delete-orphan")
     verification_records = relationship("VerificationRecord", back_populates="user")
+    batch_verifications = relationship("BatchVerification", back_populates="user")
     
     def __repr__(self) -> str:
         return f"<User {self.username} ({str(self.id)[:8]})>"
+
+    @property
+    def is_active(self) -> bool:
+        """
+        Check if user is active.
+        
+        Returns:
+            bool: True if user status is 'active', False otherwise
+        """
+        return self.status == "active"
 
 
 class Role(Base):

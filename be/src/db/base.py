@@ -5,10 +5,13 @@ Provides the base model class for SQLAlchemy models.
 
 import uuid
 import json
+import importlib
+import pkgutil
+import inspect
 from datetime import datetime
-from typing import Any
+from typing import Any, List, Type
 
-from sqlalchemy import Column, DateTime, String, TypeDecorator, JSON
+from sqlalchemy import Column, DateTime, String, TypeDecorator, JSON, Table
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.dialects.postgresql import JSONB as PostgresJSONB
 from sqlalchemy.ext.declarative import declared_attr
@@ -154,4 +157,58 @@ class Base(DeclarativeBase):
         """
         model_name = self.__class__.__name__
         id_str = str(self.id)
-        return f"<{model_name} {id_str}>" 
+        return f"<{model_name} {id_str}>"
+
+
+def load_all_models() -> None:
+    """
+    Dynamically import all models from the models directory.
+    This ensures all models are loaded and registered with the Base.metadata.
+    """
+    import src.db.models
+    
+    # Walk through all modules in the models package
+    for _, module_name, is_pkg in pkgutil.iter_modules(src.db.models.__path__, src.db.models.__name__ + '.'):
+        if not is_pkg:
+            importlib.import_module(module_name)
+
+
+def get_all_models() -> List[Type[Base]]:
+    """
+    Get all SQLAlchemy model classes defined in the models directory.
+    
+    Returns:
+        List[Type[Base]]: List of model classes
+    """
+    load_all_models()
+    
+    # Find all classes that inherit from Base
+    models = []
+    
+    for module_info in pkgutil.iter_modules(['src/db/models'], 'src.db.models.'):
+        module = importlib.import_module(module_info.name)
+        
+        for attr_name in dir(module):
+            attr = getattr(module, attr_name)
+            
+            # Check if it's a class and inherits from Base
+            if (
+                inspect.isclass(attr) and 
+                issubclass(attr, Base) and 
+                attr != Base and
+                not attr.__name__.startswith('_')
+            ):
+                models.append(attr)
+    
+    return models
+
+
+def get_all_tables() -> List[Table]:
+    """
+    Get all SQLAlchemy tables defined in the models directory.
+    
+    Returns:
+        List[Table]: List of SQLAlchemy tables
+    """
+    load_all_models()
+    return [table for table in Base.metadata.tables.values()] 

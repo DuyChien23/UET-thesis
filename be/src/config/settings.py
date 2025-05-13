@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     host: str = Field("0.0.0.0", env="HOST")
     port: int = Field(8000, env="PORT")
     mock_services: bool = Field(False, env="MOCK_SERVICES")
+    environment: str = Field("development", env="ENVIRONMENT")
     
     # Database settings
     postgres_user: str = Field("postgres", env="POSTGRES_USER")
@@ -29,6 +30,7 @@ class Settings(BaseSettings):
     postgres_port: int = Field(5432, env="POSTGRES_PORT")
     postgres_db: str = Field("digital_signature_db", env="POSTGRES_DB")
     database_url: str = ""
+    auto_create_tables: bool = Field(True, env="AUTO_CREATE_TABLES")
     
     # Redis settings
     redis_host: str = Field("localhost", env="REDIS_HOST")
@@ -40,10 +42,13 @@ class Settings(BaseSettings):
     # JWT settings
     jwt_secret_key: str = Field("supersecretkey", env="JWT_SECRET_KEY")
     jwt_algorithm: str = Field("HS256", env="JWT_ALGORITHM")
-    jwt_expire_minutes: int = Field(60 * 24, env="JWT_EXPIRE_MINUTES")  # 24 hours by default
+    jwt_expire_minutes: int = Field(1440, env="JWT_EXPIRE_MINUTES")  # 24 hours by default
     
     # CORS settings
     cors_origins: str = Field("*", env="CORS_ORIGINS")
+    
+    # Logging settings
+    log_level: str = Field("INFO", env="LOG_LEVEL")
     
     @validator("database_url", pre=True)
     def assemble_db_url(cls, v, values):

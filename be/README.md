@@ -88,6 +88,34 @@ The system follows a modular architecture inspired by Java Cryptography Architec
 
 8. Access the API documentation at http://localhost:8000/docs
 
+### Database Management
+
+The application supports automatic table generation from SQLAlchemy models.
+
+#### Using the CLI Tool
+
+The backend includes a CLI tool for database management:
+
+```bash
+# Generate all tables from models
+python -m src.cli create-tables
+
+# Drop and re-create all tables
+python -m src.cli create-tables --drop-first
+
+# Create specific tables
+python -m src.cli create-tables --tables users roles permissions
+```
+
+#### Automatic Table Creation
+
+By default, tables are automatically created at application startup. This behavior can be controlled with the `AUTO_CREATE_TABLES` environment variable:
+
+```
+AUTO_CREATE_TABLES=true  # Enable automatic table creation (default)
+AUTO_CREATE_TABLES=false # Disable automatic table creation
+```
+
 ### Running Tests
 
 ```

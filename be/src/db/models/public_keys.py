@@ -24,8 +24,8 @@ class PublicKey(Base):
     description = Column(Text, nullable=True)
     
     # Algorithm and curve
-    algorithm_name = Column(String(50), nullable=False, index=True)
-    curve_name = Column(String(50), nullable=True, index=True)
+    algorithm_name = Column(String(50), ForeignKey("algorithms.name"), nullable=False, index=True)
+    curve_name = Column(String(50), ForeignKey("curves.name"), nullable=True, index=True)
     
     # Additional metadata
     key_metadata = Column(JSONB, nullable=True)
@@ -35,6 +35,8 @@ class PublicKey(Base):
     
     # Relationships
     user = relationship("User", back_populates="public_keys")
+    algorithm = relationship("Algorithm", back_populates="public_keys")
+    curve = relationship("Curve", back_populates="public_keys")
     verification_records = relationship("VerificationRecord", back_populates="public_key")
     
     def __repr__(self) -> str:

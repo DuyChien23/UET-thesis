@@ -48,7 +48,7 @@ async def register_user(
     hashed_password = get_password_hash(user_data.password)
     
     # Create the user
-    user = await user_repo.create({
+    user = await user_repo.create(session, obj_in={
         "username": user_data.username,
         "email": user_data.email,
         "password_hash": hashed_password,

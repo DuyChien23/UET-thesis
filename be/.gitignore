@@ -46,6 +46,7 @@ htmlcov/
 # Database
 *.sqlite3
 *.db
+data/
 
 # Environment variables
 .env

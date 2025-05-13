@@ -35,7 +35,8 @@ class VerificationRecord(Base):
     signature = Column(Text, nullable=False)
     
     # Algorithm information
-    algorithm_name = Column(String(50), nullable=False, index=True)
+    algorithm_name = Column(String(50), ForeignKey("algorithms.name"), nullable=False, index=True)
+    curve_name = Column(String(50), ForeignKey("curves.name"), nullable=True, index=True)
     
     # Public key reference
     public_key_id = Column(UUID, ForeignKey("public_keys.id"), nullable=False, index=True)
@@ -50,6 +51,9 @@ class VerificationRecord(Base):
     # Relationships
     user = relationship("User", back_populates="verification_records")
     public_key = relationship("PublicKey", back_populates="verification_records")
+    algorithm = relationship("Algorithm", back_populates="verification_records")
+    curve = relationship("Curve", back_populates="verification_records")
+    batch_items = relationship("BatchVerificationItem", back_populates="verification_record")
     
     def __repr__(self) -> str:
         result = "valid" if self.status == VerificationStatus.SUCCESS else "invalid"
