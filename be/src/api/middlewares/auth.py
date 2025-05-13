@@ -103,7 +103,9 @@ async def authenticate_user(username: str, password: str, db):
     Returns:
         The authenticated user or None if authentication fails
     """
-    user_repo = UserRepository(db)
+    # Create a session factory that returns the db session
+    session_factory = lambda: db
+    user_repo = UserRepository(session_factory)
     
     # Try to find the user by username
     user = await user_repo.get_by_username(username)
@@ -145,8 +147,9 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"}
         )
     
-    # Create a repository with the provided db session
-    user_repo = UserRepository(db)
+    # Create a session factory that returns the db session
+    session_factory = lambda: db
+    user_repo = UserRepository(session_factory)
     
     user = await user_repo.get_by_id(token_data["sub"])
     
@@ -199,8 +202,9 @@ def has_permission(required_permission: str):
         user = Depends(get_current_user),
         db: AsyncSession = Depends(get_db_session)
     ):
-        # Create a repository with the provided db session
-        user_repo = UserRepository(db)
+        # Create a session factory that returns the db session
+        session_factory = lambda: db
+        user_repo = UserRepository(session_factory)
         
         has_perm = await user_repo.user_has_permission(user.id, required_permission)
         

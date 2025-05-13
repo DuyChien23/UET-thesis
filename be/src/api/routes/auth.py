@@ -34,7 +34,8 @@ async def register_user(
     logger = logging.getLogger(__name__)
     logger.info(f"Registering user: {user_data.username}")
     
-    user_repo = UserRepository(db)
+    session_factory = lambda: db
+    user_repo = UserRepository(session_factory)
     
     # Check if username already exists
     existing_user = await user_repo.get_by_username(user_data.username)
@@ -148,7 +149,8 @@ async def login_for_access_token(
     )
     
     # Update last login
-    user_repo = UserRepository(db)
+    session_factory = lambda: db
+    user_repo = UserRepository(session_factory)
     await user_repo.update_last_login(user.id)
     
     return {
@@ -193,7 +195,8 @@ async def login_user(
     )
     
     # Update last login
-    user_repo = UserRepository(db)
+    session_factory = lambda: db
+    user_repo = UserRepository(session_factory)
     await user_repo.update_last_login(user.id)
     
     return {
@@ -214,7 +217,8 @@ async def get_profile(
     Returns the profile information for the authenticated user.
     """
     # Use the provided db session
-    user_repo = UserRepository(db)
+    session_factory = lambda: db
+    user_repo = UserRepository(session_factory)
     
     user_with_roles = await user_repo.get_user_with_roles(current_user.id)
     
@@ -242,7 +246,8 @@ async def update_profile(
     Updates the profile information for the authenticated user.
     """
     # Use the provided db session
-    user_repo = UserRepository(db)
+    session_factory = lambda: db
+    user_repo = UserRepository(session_factory)
     
     # Prepare update data
     update_dict = {}
@@ -300,7 +305,8 @@ async def change_password(
     Changes the password for the authenticated user.
     """
     # Use the provided db session
-    user_repo = UserRepository(db)
+    session_factory = lambda: db
+    user_repo = UserRepository(session_factory)
     
     # Get the full user object with password hash
     user = await user_repo.get_by_id(current_user.id)

@@ -88,8 +88,7 @@ async def seed_test_data(engine):
             name="secp256k1",
             algorithm_id=ecdsa_id,
             description="SECP256k1 curve (used in Bitcoin)",
-            parameters={"bit_size": 256, "hash_algorithm": "SHA256"},
-            is_default=True,
+            parameters={"bit_size": 256, "hash_algorithm": "SHA256", "is_default": True},
             status="enabled",
             created_at=now,
             updated_at=now

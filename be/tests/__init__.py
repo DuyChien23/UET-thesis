@@ -1,3 +1,3 @@
 """
-Test package for the Digital Signature Verification API.
+Test module for digital signature verification API
 """ 

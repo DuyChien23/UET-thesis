@@ -108,6 +108,263 @@ async def seed_data() -> None:
         await close_db_connection()
 
 
+async def create_admin_user(username: str = "admin", email: str = "admin@example.com") -> None:
+    """
+    Create an admin user and role.
+    
+    Args:
+        username: Admin username (default: admin)
+        password: Admin password (default: admin123)
+        email: Admin email (default: admin@example.com)
+    """
+    logger.info(f"Creating admin user: {username}")
+    
+    try:
+        # Create a session
+        from sqlalchemy.ext.asyncio import AsyncSession
+        from src.db.repositories.users import UserRepository
+        from src.utils.password import get_password_hash
+        from src.db.models.users import Role, User, user_roles
+        from sqlalchemy import select, insert, inspect
+        import uuid
+        import datetime
+        
+        # Get database engine
+        engine = get_engine()
+        
+        # Check if tables exist
+        from sqlalchemy.schema import MetaData
+        metadata = MetaData()
+        async with engine.connect() as conn:
+            # Check if the roles table exists
+            try:
+                await conn.execute(select(1).select_from(Role.__table__))
+                logger.info("Tables already exist")
+            except Exception as e:
+                logger.warning(f"Tables don't exist, creating them: {e}")
+                # Create tables if they don't exist
+                await create_tables()
+                # Seed basic data
+                await seed_data()
+        
+        async with AsyncSession(engine) as session:
+            # Create a session factory that returns the session
+            session_factory = lambda: session
+            user_repo = UserRepository(session_factory)
+            
+            # Check if admin role exists
+            admin_role = await user_repo.get_role_by_name('admin')
+            if not admin_role:
+                logger.info('Creating admin role...')
+                now = datetime.datetime.utcnow()
+                admin_role_id = str(uuid.uuid4())
+                admin_role_stmt = insert(Role).values(
+                    id=admin_role_id,
+                    name='admin',
+                    description='Administrator with full system access',
+                    created_at=now,
+                    updated_at=now
+                )
+                await session.execute(admin_role_stmt)
+                await session.commit()
+                admin_role = await user_repo.get_role_by_name('admin')
+                logger.info('Admin role created successfully!')
+            else:
+                logger.info('Admin role already exists')
+            
+            # Check if admin user exists
+            admin_user = await user_repo.get_by_username(username)
+            if not admin_user:
+                logger.info('Creating admin user...')
+                admin_user = await user_repo.create(session, obj_in={
+                    'username': username,
+                    'email': email,
+                    'password_hash': '$2b$12$WMUO584qliC2ell5l0YKKuIK2sgVnEdONTrWFIgh29fWr9alqSHiO',
+                    'full_name': 'System Administrator',
+                    'status': 'active'
+                })
+                
+                # Add admin role to admin user using direct table insert
+                # This avoids the async issue with lazy loading of user.roles
+                role_user_stmt = insert(user_roles).values(
+                    user_id=admin_user.id,
+                    role_id=admin_role.id
+                )
+                await session.execute(role_user_stmt)
+                await session.commit()
+                
+                logger.info('Admin user created successfully!')
+            else:
+                logger.info('Admin user already exists')
+                
+    except Exception as e:
+        logger.error(f"Error creating admin user: {e}")
+        raise
+    finally:
+        await close_db_connection()
+
+
+async def force_seed_algorithms() -> None:
+    """
+    Force seed the algorithms and curves directly to the database,
+    bypassing the registry system.
+    """
+    logger.info("Force seeding algorithms and curves directly")
+    
+    try:
+        import uuid
+        import datetime
+        from sqlalchemy.ext.asyncio import AsyncSession
+        from sqlalchemy import insert
+        from src.db.models.algorithms import Algorithm, Curve
+        
+        # Get database engine
+        engine = get_engine()
+        
+        async with AsyncSession(engine) as session:
+            # Define the algorithms
+            now = datetime.datetime.utcnow()
+            
+            # ECDSA
+            ecdsa_id = str(uuid.uuid4())
+            ecdsa_algo = {
+                "id": ecdsa_id,
+                "name": "ECDSA",
+                "type": "elliptic-curve",
+                "description": "Elliptic Curve Digital Signature Algorithm",
+                "is_default": True,
+                "status": "enabled",
+                "created_at": now,
+                "updated_at": now
+            }
+            
+            # Create ECDSA curves
+            secp256k1_curve = {
+                "id": str(uuid.uuid4()),
+                "name": "secp256k1",
+                "algorithm_id": ecdsa_id,
+                "description": "SECG curve used in Bitcoin and blockchain applications",
+                "parameters": {
+                    "bit_size": 256,
+                    "hash_algorithm": "SHA256",
+                    "is_default": True
+                },
+                "status": "enabled",
+                "created_at": now,
+                "updated_at": now
+            }
+            
+            secp256r1_curve = {
+                "id": str(uuid.uuid4()),
+                "name": "secp256r1",
+                "algorithm_id": ecdsa_id,
+                "description": "NIST curve P-256, widely used for general purpose applications",
+                "parameters": {
+                    "bit_size": 256,
+                    "hash_algorithm": "SHA256"
+                },
+                "status": "enabled",
+                "created_at": now,
+                "updated_at": now
+            }
+            
+            # EdDSA
+            eddsa_id = str(uuid.uuid4())
+            eddsa_algo = {
+                "id": eddsa_id,
+                "name": "EdDSA",
+                "type": "edwards-curve",
+                "description": "Edwards-curve Digital Signature Algorithm",
+                "is_default": False,
+                "status": "enabled",
+                "created_at": now,
+                "updated_at": now
+            }
+            
+            # Create EdDSA curve
+            ed25519_curve = {
+                "id": str(uuid.uuid4()),
+                "name": "ed25519",
+                "algorithm_id": eddsa_id,
+                "description": "Edwards curve 25519, fast and secure for general use",
+                "parameters": {
+                    "bit_size": 256,
+                    "hash_algorithm": "SHA512"
+                },
+                "status": "enabled",
+                "created_at": now,
+                "updated_at": now
+            }
+            
+            # RSA
+            rsa_id = str(uuid.uuid4())
+            rsa_algo = {
+                "id": rsa_id,
+                "name": "RSA-SHA256",
+                "type": "asymmetric",
+                "description": "RSA Signature Algorithm with SHA-256",
+                "is_default": False,
+                "status": "enabled",
+                "created_at": now,
+                "updated_at": now
+            }
+            
+            # Create RSA parameters
+            rsa_2048_params = {
+                "id": str(uuid.uuid4()),
+                "name": "rsa-2048",
+                "algorithm_id": rsa_id,
+                "description": "RSA with 2048-bit key length",
+                "parameters": {
+                    "bit_size": 2048,
+                    "hash_algorithm": "SHA256"
+                },
+                "status": "enabled",
+                "created_at": now,
+                "updated_at": now
+            }
+            
+            rsa_4096_params = {
+                "id": str(uuid.uuid4()),
+                "name": "rsa-4096",
+                "algorithm_id": rsa_id,
+                "description": "RSA with 4096-bit key length",
+                "parameters": {
+                    "bit_size": 4096,
+                    "hash_algorithm": "SHA256"
+                },
+                "status": "enabled",
+                "created_at": now,
+                "updated_at": now
+            }
+            
+            # Insert algorithms
+            for algo in [ecdsa_algo, eddsa_algo, rsa_algo]:
+                try:
+                    stmt = insert(Algorithm).values(**algo)
+                    await session.execute(stmt)
+                except Exception as e:
+                    logger.warning(f"Could not insert algorithm {algo['name']}: {e}")
+            
+            # Insert curves
+            for curve in [secp256k1_curve, secp256r1_curve, ed25519_curve, rsa_2048_params, rsa_4096_params]:
+                try:
+                    stmt = insert(Curve).values(**curve)
+                    await session.execute(stmt)
+                except Exception as e:
+                    logger.warning(f"Could not insert curve {curve['name']}: {e}")
+            
+            await session.commit()
+            
+            logger.info("Successfully force seeded algorithms and curves")
+            
+    except Exception as e:
+        logger.error(f"Error force seeding algorithms: {e}")
+        raise
+    finally:
+        await close_db_connection()
+
+
 def main() -> None:
     """
     Main CLI entrypoint.
@@ -139,6 +396,33 @@ def main() -> None:
         help="Seed the database with initial data (algorithms, curves, roles, admin user and sample data)"
     )
     
+    # create-admin command
+    create_admin_parser = subparsers.add_parser(
+        "create-admin",
+        help="Create an admin user and role"
+    )
+    create_admin_parser.add_argument(
+        "--username", 
+        default="admin",
+        help="Admin username (default: admin)"
+    )
+    create_admin_parser.add_argument(
+        "--password", 
+        default="admin123",
+        help="Admin password (default: admin123)"
+    )
+    create_admin_parser.add_argument(
+        "--email", 
+        default="admin@example.com",
+        help="Admin email (default: admin@example.com)"
+    )
+    
+    # force-seed-algorithms command
+    force_seed_algorithms_parser = subparsers.add_parser(
+        "force-seed-algorithms",
+        help="Force seed algorithms and curves directly into the database"
+    )
+    
     # Parse arguments
     args = parser.parse_args()
     
@@ -147,6 +431,14 @@ def main() -> None:
         asyncio.run(create_tables(drop_first=args.drop_first, specific_tables=args.tables))
     elif args.command == "seed-data":
         asyncio.run(seed_data())
+    elif args.command == "create-admin":
+        asyncio.run(create_admin_user(
+            username=args.username,
+            password=args.password,
+            email=args.email
+        ))
+    elif args.command == "force-seed-algorithms":
+        asyncio.run(force_seed_algorithms())
     else:
         parser.print_help()
         sys.exit(1)

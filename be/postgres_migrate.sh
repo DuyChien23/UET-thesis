@@ -24,18 +24,21 @@ if [ -z "$PYTHON_CMD" ]; then
     exit 1
 fi
 
-echo "Generating tables to PostgreSQL database..."
+echo "===== Bắt đầu quá trình thiết lập database ====="
 
 # Sử dụng CLI tool để tạo các bảng
-echo "Using CLI tool to create tables..."
+echo "1. Tạo các bảng database..."
 $PYTHON_CMD -m src.cli create-tables
 
-echo "Database tables created successfully!"
+echo "2. Tạo dữ liệu thuật toán và các đường cong..."
+$PYTHON_CMD -m src.cli force-seed-algorithms
 
-# Seed initial data
-echo "Seeding database with initial data (algorithms, curves, roles, admin user)..."
+echo "3. Thiết lập seed data cơ bản (roles, permissions)..."
 $PYTHON_CMD -m src.cli seed-data
 
-echo "Database seeding completed successfully!"
-echo "You can now run the application with PostgreSQL using:"
+echo "4. Tạo tài khoản admin..."
+$PYTHON_CMD -m src.cli create-admin
+
+echo "===== Thiết lập database hoàn tất! ====="
+echo "Bạn có thể chạy ứng dụng với PostgreSQL bằng cách sử dụng:"
 echo "./postgres_run.sh" 

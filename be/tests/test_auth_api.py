@@ -201,7 +201,6 @@ async def test_regular_login_with_json(async_client: AsyncClient, test_user):
     assert "expires_in" in data
 
 
-@pytest.mark.skip("Skipping due to test setup issues")
 @pytest.mark.asyncio
 async def test_get_profile(async_client: AsyncClient, test_user, auth_token):
     """Test getting user profile."""
@@ -214,9 +213,9 @@ async def test_get_profile(async_client: AsyncClient, test_user, auth_token):
     # Check response
     assert response.status_code == 200
     data = response.json()
-    assert data["username"] == test_user.username
-    assert data["email"] == test_user.email
-    assert data["full_name"] == test_user.full_name
+    assert data["username"] == test_user["username"]
+    assert data["email"] == test_user["email"]
+    assert data["full_name"] == test_user["full_name"]
     assert "roles" in data
     # No need to check specific roles as the format may vary
 
@@ -231,7 +230,6 @@ async def test_get_profile_no_auth(async_client: AsyncClient):
     assert response.status_code == 403  # Forbidden or 401 Unauthorized
     
 
-@pytest.mark.skip("Skipping due to test setup issues")
 @pytest.mark.asyncio
 async def test_update_profile(async_client: AsyncClient, test_user, auth_token):
     """Test updating user profile."""
@@ -255,7 +253,6 @@ async def test_update_profile(async_client: AsyncClient, test_user, auth_token):
     assert data["email"] == update_data["email"]
 
 
-@pytest.mark.skip("Skipping due to test setup issues")
 @pytest.mark.asyncio
 async def test_change_password(async_client: AsyncClient, test_user, auth_token):
     """Test changing user password."""
