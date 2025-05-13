@@ -15,6 +15,7 @@ from starlette.status import HTTP_401_UNAUTHORIZED, HTTP_403_FORBIDDEN
 from src.config.settings import get_settings
 from src.db.repositories.users import UserRepository
 from src.db.session import get_db_session
+from src.utils.password import verify_password
 
 
 # Security scheme for API authorization
@@ -89,6 +90,34 @@ def decode_token(token: str) -> Dict[str, Any]:
         )
 
 
+async def authenticate_user(username: str, password: str, db):
+    """
+    Authenticate a user with username/email and password.
+    
+    Args:
+        username (str): The username or email
+        password (str): The password
+        db: Database session
+        
+    Returns:
+        The authenticated user or None if authentication fails
+    """
+    user_repo = UserRepository(db)
+    
+    # Try to find the user by username
+    user = await user_repo.get_by_username(username)
+    
+    # If not found, try by email
+    if not user:
+        user = await user_repo.get_by_email(username)
+    
+    # If still not found or password doesn't match, return None
+    if not user or not verify_password(password, user.password_hash):
+        return None
+        
+    return user
+
+
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Security(security)
 ):
@@ -126,14 +155,32 @@ async def get_current_user(
             headers={"WWW-Authenticate": "Bearer"}
         )
     
-    if not user.is_active:  # Changed from user.status != "active"
+    return user
+
+
+async def get_current_active_user(
+    current_user = Depends(get_current_user)
+):
+    """
+    Get the current active user.
+    
+    Args:
+        current_user: The current authenticated user
+        
+    Returns:
+        The current active user
+        
+    Raises:
+        HTTPException: If the user is not active
+    """
+    if current_user.status != "active":
         raise HTTPException(
             status_code=HTTP_401_UNAUTHORIZED,
             detail="Inactive user",
             headers={"WWW-Authenticate": "Bearer"}
         )
     
-    return user
+    return current_user
 
 
 def has_permission(required_permission: str):

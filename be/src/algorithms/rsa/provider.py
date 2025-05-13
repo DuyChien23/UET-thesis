@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import base64
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.asymmetric import padding, rsa, utils
@@ -48,10 +48,12 @@ class RSAProvider(SignatureAlgorithmProvider, PublicKeyValidator):
         self._supported_key_sizes = [2048, 3072, 4096]
     
     def get_algorithm_name(self) -> str:
-        return "RSA"
+        """Get the algorithm name."""
+        return "RSA-SHA256"
     
     def get_algorithm_type(self) -> str:
-        return "RSA"
+        """Get the algorithm type."""
+        return "asymmetric"
     
     def verify(self, document_hash: str, signature: str, public_key: str, 
                curve_name: Optional[str] = None, **kwargs) -> bool:
@@ -114,10 +116,20 @@ class RSAProvider(SignatureAlgorithmProvider, PublicKeyValidator):
             return False
     
     def get_supported_curves(self) -> Dict[str, Dict[str, Any]]:
-        # RSA doesn't use curves, but we'll return the padding schemes
+        """Get the supported key sizes for this algorithm."""
         return {
-            name: {k: v for k, v in info.items() if k != "padding_class"} 
-            for name, info in self._supported_padding_schemes.items()
+            "RSA-2048": {
+                "bit_size": 2048,
+                "description": "RSA with 2048-bit key size"
+            },
+            "RSA-3072": {
+                "bit_size": 3072,
+                "description": "RSA with 3072-bit key size"
+            },
+            "RSA-4096": {
+                "bit_size": 4096,
+                "description": "RSA with 4096-bit key size"
+            }
         }
     
     def get_curve_parameters(self, curve_name: str) -> Dict[str, Any]:
@@ -159,5 +171,6 @@ class RSAProvider(SignatureAlgorithmProvider, PublicKeyValidator):
         except Exception:
             return False
     
-    def get_supported_formats(self) -> list[str]:
-        return ["PEM", "DER"] 
+    def get_supported_formats(self) -> List[str]:
+        """Get the supported key formats."""
+        return ["PEM", "DER", "JWK", "PKCS#1"] 

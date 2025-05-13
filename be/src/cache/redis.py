@@ -9,6 +9,8 @@ from typing import Any, Optional, Union
 import redis.asyncio as redis
 from redis.asyncio import Redis
 
+from src.config.settings import get_settings
+
 logger = logging.getLogger(__name__)
 
 
@@ -155,4 +157,29 @@ class RedisCache:
             return await self.redis.keys(pattern)
         except Exception as e:
             logger.error(f"Error getting keys from Redis: {str(e)}")
-            return [] 
+            return []
+
+
+# Global Redis cache client
+_redis_client: Optional[RedisCache] = None
+
+
+async def get_redis_client() -> Optional[RedisCache]:
+    """
+    Get the Redis cache client singleton instance.
+    
+    Returns:
+        Optional[RedisCache]: The Redis cache client, or None if not enabled
+    """
+    global _redis_client
+    
+    if _redis_client is None:
+        settings = get_settings()
+        if not settings.redis_enabled:
+            logger.warning("Redis is not enabled in settings")
+            return None
+            
+        _redis_client = RedisCache(settings.redis_url)
+        await _redis_client.connect()
+    
+    return _redis_client 

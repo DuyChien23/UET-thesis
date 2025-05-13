@@ -12,6 +12,9 @@ from src.services.algorithms import AlgorithmService
 from src.db.repositories.verification import VerificationRepository
 from src.db.repositories.public_keys import PublicKeyRepository
 from src.db.repositories.users import UserRepository
+from src.db.session import get_db_session
+from src.config.settings import get_settings
+from src.cache.redis import get_redis_client
 
 logger = logging.getLogger(__name__)
 
@@ -21,43 +24,47 @@ _public_key_service: Optional[PublicKeyService] = None
 _algorithm_service: Optional[AlgorithmService] = None
 
 
-async def init_services(db_session, cache_client=None):
+async def init_services(db_session=None, cache_client=None):
     """
     Initialize all services.
     
     Args:
-        db_session: The database session
-        cache_client: The Redis cache client (optional)
+        db_session: Optional database session (for testing)
+        cache_client: Optional Redis cache client
     """
-    global _verification_service, _public_key_service, _algorithm_service
+    global _verification_service, _public_key_service
     
-    logger.info("Initializing services")
+    settings = get_settings()
     
-    # Create repositories
-    verification_repo = VerificationRepository(db_session)
-    public_key_repo = PublicKeyRepository(db_session)
-    user_repo = UserRepository(db_session)
+    # Get DB session and repositories
+    db = db_session if db_session is not None else await get_db_session()
     
-    # Create services
-    _verification_service = VerificationService(
-        verification_repo=verification_repo,
-        public_key_repo=public_key_repo,
-        user_repo=user_repo,
-        cache_client=cache_client
-    )
+    # Initialize repositories
+    public_key_repo = PublicKeyRepository(db)
+    verification_repo = VerificationRepository(db)
+    user_repo = UserRepository(db)
     
+    # Create Redis client if enabled and not provided
+    if cache_client is None and settings.redis_enabled:
+        try:
+            cache_client = await get_redis_client()
+        except Exception as e:
+            logger.warning(f"Failed to initialize Redis client: {str(e)}")
+    
+    # Initialize services
     _public_key_service = PublicKeyService(
         public_key_repo=public_key_repo,
         user_repo=user_repo,
         cache_client=cache_client
     )
     
-    _algorithm_service = AlgorithmService(cache_client=cache_client)
-    
-    # Initialize each service
-    _verification_service.setup()
-    _public_key_service.setup()
-    _algorithm_service.setup()
+    _verification_service = VerificationService(
+        public_key_service=_public_key_service,
+        verification_repo=verification_repo,
+        public_key_repo=public_key_repo,
+        user_repo=user_repo,
+        cache_client=cache_client
+    )
     
     logger.info("Services initialized")
 

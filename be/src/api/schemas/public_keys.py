@@ -1,36 +1,63 @@
 from pydantic import BaseModel, Field, UUID4
 from typing import Optional, Dict, Any, List
+from datetime import datetime
 
 
-class PublicKeyCreate(BaseModel):
-    """Request schema for creating a public key."""
-    key_data: str = Field(..., description="Public key data (PEM or DER encoded)")
-    algorithm_name: str = Field(..., description="Algorithm name (ECDSA, EdDSA, RSA)")
-    name: Optional[str] = Field(None, description="Name for the key")
-    description: Optional[str] = Field(None, description="Description for the key")
-    curve_name: Optional[str] = Field(None, description="Curve name for ECC algorithms")
+class PublicKeyBase(BaseModel):
+    """Base schema for public key data."""
+    algorithm_id: str = Field(..., description="Algorithm ID for this key")
+    curve: str = Field(..., description="Curve or key type for this key")
+    key_data: str = Field(..., description="The base64-encoded public key data")
+    name: Optional[str] = Field(None, description="A friendly name for this key")
+    description: Optional[str] = Field(None, description="A description of this key")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata for the key")
 
 
-class PublicKeyResponse(BaseModel):
-    """Response schema for public key operations."""
-    id: str = Field(..., description="Public key ID")
-    name: Optional[str] = Field(None, description="Name for the key")
-    description: Optional[str] = Field(None, description="Description for the key")
-    algorithm_name: str = Field(..., description="Algorithm name")
-    curve_name: Optional[str] = Field(None, description="Curve name for ECC algorithms")
-    user_id: str = Field(..., description="ID of the user who owns the key")
-    created_at: str = Field(..., description="Timestamp when the key was created")
-    updated_at: Optional[str] = Field(None, description="Timestamp when the key was last updated")
-    key_fingerprint: str = Field(..., description="Fingerprint of the public key")
+class PublicKeyCreate(PublicKeyBase):
+    """Schema for creating a new public key."""
+    pass
+
+
+class PublicKeyUpdate(BaseModel):
+    """Schema for updating a public key."""
+    name: Optional[str] = Field(None, description="A friendly name for this key")
+    description: Optional[str] = Field(None, description="A description of this key")
     metadata: Optional[Dict[str, Any]] = Field(None, description="Additional metadata for the key")
+    is_active: Optional[bool] = Field(None, description="Whether this key is active")
+
+
+class PublicKeyInDB(PublicKeyBase):
+    """Schema for a public key as stored in the database."""
+    id: str = Field(..., description="Unique ID for the public key")
+    user_id: str = Field(..., description="ID of the user who owns this key")
+    is_active: bool = Field(..., description="Whether this key is active")
+    created_at: datetime = Field(..., description="When this key was created")
+    updated_at: Optional[datetime] = Field(None, description="When this key was last updated")
+
+    class Config:
+        orm_mode = True
+
+
+class PublicKeyResponse(PublicKeyInDB):
+    """Schema for returning a public key."""
+    pass
 
 
 class PublicKeyList(BaseModel):
-    """Response schema for listing public keys."""
-    items: List[PublicKeyResponse] = Field(..., description="List of public keys")
-    count: int = Field(..., description="Total number of keys")
-    
+    """Schema for returning a list of public keys."""
+    keys: List[PublicKeyResponse] = Field(..., description="List of public keys")
+    total: int = Field(..., description="Total number of keys matching the query")
+    page: int = Field(..., description="Current page number")
+    size: int = Field(..., description="Page size")
+    pages: int = Field(..., description="Total number of pages")
+
+
+class PublicKeyDetail(PublicKeyResponse):
+    """Schema for returning a detailed view of a public key."""
+    algorithm_name: str = Field(..., description="Name of the algorithm for this key")
+    algorithm_type: str = Field(..., description="Type of the algorithm for this key")
+    curve_details: Dict[str, Any] = Field(..., description="Details about the curve or key type")
+
 
 class PublicKeyDelete(BaseModel):
     """Response schema for deleting a public key."""

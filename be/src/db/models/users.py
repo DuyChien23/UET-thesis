@@ -5,6 +5,7 @@ Contains SQLAlchemy models for user management with roles and permissions.
 
 from sqlalchemy import Column, String, ForeignKey, Table, Boolean, DateTime
 from sqlalchemy.orm import relationship
+from sqlalchemy.ext.hybrid import hybrid_property
 from datetime import datetime
 
 from ..base import Base, UUID
@@ -41,6 +42,7 @@ class User(Base):
     # Profile
     full_name = Column(String(100), nullable=True)
     status = Column(String(20), nullable=False, default="active", server_default="active", index=True)
+    is_superuser = Column(Boolean, nullable=False, default=False, server_default="false")
     
     # Tracking
     last_login = Column(DateTime, nullable=True)
@@ -54,7 +56,7 @@ class User(Base):
     def __repr__(self) -> str:
         return f"<User {self.username} ({str(self.id)[:8]})>"
 
-    @property
+    @hybrid_property
     def is_active(self) -> bool:
         """
         Check if user is active.

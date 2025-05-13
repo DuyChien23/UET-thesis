@@ -138,4 +138,26 @@ def get_algorithm_registry() -> AlgorithmRegistry:
     Returns:
         AlgorithmRegistry: The singleton instance
     """
-    return AlgorithmRegistry() 
+    return AlgorithmRegistry()
+
+
+def get_algorithm_provider(algorithm_name: str) -> Optional[SignatureAlgorithmProvider]:
+    """
+    Get an algorithm provider by name.
+    
+    This is a convenience function to get a provider from the registry without
+    having to handle the KeyError exception.
+    
+    Args:
+        algorithm_name (str): The name of the algorithm
+        
+    Returns:
+        Optional[SignatureAlgorithmProvider]: The algorithm provider, 
+        or None if the algorithm is not registered
+    """
+    registry = get_algorithm_registry()
+    try:
+        return registry.get_algorithm(algorithm_name)
+    except KeyError:
+        logger.warning(f"Algorithm provider '{algorithm_name}' not found")
+        return None 

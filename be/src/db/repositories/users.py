@@ -85,27 +85,41 @@ class UserRepository(BaseRepository[User]):
         result = await self.db.execute(query)
         return result.scalars().all()
     
-    async def get_user_with_roles(self, user_id: uuid.UUID) -> Optional[User]:
+    async def get_user_with_roles(self, user_id: Any) -> Optional[User]:
         """
         Get a user with their roles.
         
         Args:
-            user_id (uuid.UUID): User ID
+            user_id: User ID (can be UUID or string)
             
         Returns:
             Optional[User]: The user with roles if found, None otherwise
         """
+        # Handle string UUID conversion if needed
+        if isinstance(user_id, str):
+            try:
+                user_id = uuid.UUID(user_id)
+            except ValueError:
+                return None
+        
         query = select(User).where(User.id == user_id).options(selectinload(User.roles))
         result = await self.db.execute(query)
         return result.scalars().first()
     
-    async def update_last_login(self, user_id: uuid.UUID) -> None:
+    async def update_last_login(self, user_id: Any) -> None:
         """
         Update a user's last login timestamp.
         
         Args:
-            user_id (uuid.UUID): User ID
+            user_id: User ID (can be UUID or string)
         """
+        # Handle string UUID conversion if needed
+        if isinstance(user_id, str):
+            try:
+                user_id = uuid.UUID(user_id)
+            except ValueError:
+                return
+        
         user = await self.get(self.db, user_id)
         if user:
             user.last_login = func.now()
@@ -114,19 +128,32 @@ class UserRepository(BaseRepository[User]):
     
     async def add_role_to_user(
         self, 
-        user_id: uuid.UUID, 
-        role_id: uuid.UUID
+        user_id: Any, 
+        role_id: Any
     ) -> bool:
         """
         Add a role to a user.
         
         Args:
-            user_id (uuid.UUID): User ID
-            role_id (uuid.UUID): Role ID
+            user_id: User ID (can be UUID or string)
+            role_id: Role ID (can be UUID or string)
             
         Returns:
             bool: True if the role was added, False otherwise
         """
+        # Handle string UUID conversion if needed
+        if isinstance(user_id, str):
+            try:
+                user_id = uuid.UUID(user_id)
+            except ValueError:
+                return False
+                
+        if isinstance(role_id, str):
+            try:
+                role_id = uuid.UUID(role_id)
+            except ValueError:
+                return False
+        
         # Check if user and role exist
         user = await self.get(self.db, user_id)
         if not user:
@@ -152,19 +179,32 @@ class UserRepository(BaseRepository[User]):
     
     async def remove_role_from_user(
         self, 
-        user_id: uuid.UUID, 
-        role_id: uuid.UUID
+        user_id: Any, 
+        role_id: Any
     ) -> bool:
         """
         Remove a role from a user.
         
         Args:
-            user_id (uuid.UUID): User ID
-            role_id (uuid.UUID): Role ID
+            user_id: User ID (can be UUID or string)
+            role_id: Role ID (can be UUID or string)
             
         Returns:
             bool: True if the role was removed, False otherwise
         """
+        # Handle string UUID conversion if needed
+        if isinstance(user_id, str):
+            try:
+                user_id = uuid.UUID(user_id)
+            except ValueError:
+                return False
+                
+        if isinstance(role_id, str):
+            try:
+                role_id = uuid.UUID(role_id)
+            except ValueError:
+                return False
+        
         # Check if user exists
         user = await self.get_user_with_roles(user_id)
         if not user:
@@ -186,19 +226,26 @@ class UserRepository(BaseRepository[User]):
     
     async def user_has_permission(
         self, 
-        user_id: uuid.UUID, 
+        user_id: Any, 
         permission_name: str
     ) -> bool:
         """
         Check if a user has a specific permission through any of their roles.
         
         Args:
-            user_id (uuid.UUID): User ID
+            user_id: User ID (can be UUID or string)
             permission_name (str): Permission name to check
             
         Returns:
             bool: True if the user has the permission, False otherwise
         """
+        # Handle string UUID conversion if needed
+        if isinstance(user_id, str):
+            try:
+                user_id = uuid.UUID(user_id)
+            except ValueError:
+                return False
+        
         # Query that checks if the user has a role that has the permission
         query = (
             select(func.count())
@@ -219,22 +266,24 @@ class UserRepository(BaseRepository[User]):
         count = result.scalar_one()
         return count > 0
     
-    async def get_by_id(self, user_id: str) -> Optional[User]:
+    async def get_by_id(self, user_id: Any) -> Optional[User]:
         """
         Get a user by ID.
         
         Args:
-            user_id (str): The user ID
+            user_id: The user ID (can be UUID or string)
             
         Returns:
             Optional[User]: The user if found, None otherwise
         """
-        try:
-            user_uuid = uuid.UUID(user_id)
-        except ValueError:
-            return None
+        # Handle string UUID conversion if needed
+        if isinstance(user_id, str):
+            try:
+                user_id = uuid.UUID(user_id)
+            except ValueError:
+                return None
         
-        query = select(User).where(User.id == user_uuid)
+        query = select(User).where(User.id == user_id)
         result = await self.db.execute(query)
         return result.scalars().first()
 
@@ -268,35 +317,55 @@ class RoleRepository(BaseRepository[Role]):
         result = await self.db.execute(query)
         return result.scalars().first()
     
-    async def get_role_with_permissions(self, role_id: uuid.UUID) -> Optional[Role]:
+    async def get_role_with_permissions(self, role_id: Any) -> Optional[Role]:
         """
         Get a role with its permissions.
         
         Args:
-            role_id (uuid.UUID): Role ID
+            role_id: Role ID (can be UUID or string)
             
         Returns:
             Optional[Role]: The role with permissions if found, None otherwise
         """
+        # Handle string UUID conversion if needed
+        if isinstance(role_id, str):
+            try:
+                role_id = uuid.UUID(role_id)
+            except ValueError:
+                return None
+        
         query = select(Role).where(Role.id == role_id).options(selectinload(Role.permissions))
         result = await self.db.execute(query)
         return result.scalars().first()
     
     async def add_permission_to_role(
         self, 
-        role_id: uuid.UUID, 
-        permission_id: uuid.UUID
+        role_id: Any, 
+        permission_id: Any
     ) -> bool:
         """
         Add a permission to a role.
         
         Args:
-            role_id (uuid.UUID): Role ID
-            permission_id (uuid.UUID): Permission ID
+            role_id: Role ID (can be UUID or string)
+            permission_id: Permission ID (can be UUID or string)
             
         Returns:
             bool: True if the permission was added, False otherwise
         """
+        # Handle string UUID conversion if needed
+        if isinstance(role_id, str):
+            try:
+                role_id = uuid.UUID(role_id)
+            except ValueError:
+                return False
+                
+        if isinstance(permission_id, str):
+            try:
+                permission_id = uuid.UUID(permission_id)
+            except ValueError:
+                return False
+        
         # Check if role and permission exist
         role = await self.get_role_with_permissions(role_id)
         if not role:
@@ -322,19 +391,32 @@ class RoleRepository(BaseRepository[Role]):
     
     async def remove_permission_from_role(
         self, 
-        role_id: uuid.UUID, 
-        permission_id: uuid.UUID
+        role_id: Any, 
+        permission_id: Any
     ) -> bool:
         """
         Remove a permission from a role.
         
         Args:
-            role_id (uuid.UUID): Role ID
-            permission_id (uuid.UUID): Permission ID
+            role_id: Role ID (can be UUID or string)
+            permission_id: Permission ID (can be UUID or string)
             
         Returns:
             bool: True if the permission was removed, False otherwise
         """
+        # Handle string UUID conversion if needed
+        if isinstance(role_id, str):
+            try:
+                role_id = uuid.UUID(role_id)
+            except ValueError:
+                return False
+                
+        if isinstance(permission_id, str):
+            try:
+                permission_id = uuid.UUID(permission_id)
+            except ValueError:
+                return False
+        
         # Check if role exists
         role = await self.get_role_with_permissions(role_id)
         if not role:

@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import base64
 from cryptography.hazmat.primitives.asymmetric import ed25519, ed448
 from cryptography.hazmat.primitives.serialization import load_pem_public_key, load_der_public_key
@@ -30,7 +30,7 @@ class EdDSAProvider(SignatureAlgorithmProvider, PublicKeyValidator):
         return "EdDSA"
     
     def get_algorithm_type(self) -> str:
-        return "EdDSA"
+        return "edwards-curve"
     
     def verify(self, document_hash: str, signature: str, public_key: str, 
                curve_name: Optional[str] = "Ed25519", **kwargs) -> bool:
@@ -116,5 +116,5 @@ class EdDSAProvider(SignatureAlgorithmProvider, PublicKeyValidator):
         except Exception:
             return False
     
-    def get_supported_formats(self) -> list[str]:
-        return ["PEM", "DER"] 
+    def get_supported_formats(self) -> List[str]:
+        return ["PEM", "DER", "Raw"] 

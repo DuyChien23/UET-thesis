@@ -38,6 +38,7 @@ class Settings(BaseSettings):
     redis_db: int = Field(0, env="REDIS_DB")
     redis_password: str = Field("", env="REDIS_PASSWORD")
     redis_url: str = ""
+    redis_enabled: bool = Field(False, env="REDIS_ENABLED")
     
     # JWT settings
     jwt_secret_key: str = Field("supersecretkey", env="JWT_SECRET_KEY")

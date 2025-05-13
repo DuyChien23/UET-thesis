@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 import base64
 import hashlib
 from cryptography.hazmat.primitives import hashes
@@ -16,31 +16,39 @@ class ECDSAProvider(SignatureAlgorithmProvider, PublicKeyValidator):
     
     def __init__(self):
         self._supported_curves = {
+            "secp256k1": {
+                "curve_class": ec.SECP256K1,
+                "hash_algorithm": hashes.SHA256(),
+                "bit_size": 256,
+                "description": "SECG curve used in Bitcoin and blockchain applications"
+            },
             "secp256r1": {
                 "curve_class": ec.SECP256R1,
                 "hash_algorithm": hashes.SHA256(),
                 "bit_size": 256,
-                "description": "NIST P-256 curve (also known as prime256v1)"
+                "description": "NIST curve P-256, widely used for general purpose applications"
             },
             "secp384r1": {
                 "curve_class": ec.SECP384R1,
                 "hash_algorithm": hashes.SHA384(),
                 "bit_size": 384,
-                "description": "NIST P-384 curve"
+                "description": "NIST curve P-384, for higher security requirements"
             },
             "secp521r1": {
                 "curve_class": ec.SECP521R1,
                 "hash_algorithm": hashes.SHA512(),
                 "bit_size": 521,
-                "description": "NIST P-521 curve"
+                "description": "NIST curve P-521, for very high security requirements"
             }
         }
     
     def get_algorithm_name(self) -> str:
+        """Get the algorithm name."""
         return "ECDSA"
     
     def get_algorithm_type(self) -> str:
-        return "ECDSA"
+        """Get the algorithm type."""
+        return "elliptic-curve"
     
     def verify(self, document_hash: str, signature: str, public_key: str, 
                curve_name: Optional[str] = "secp256r1", **kwargs) -> bool:
@@ -83,6 +91,7 @@ class ECDSAProvider(SignatureAlgorithmProvider, PublicKeyValidator):
             return False
     
     def get_supported_curves(self) -> Dict[str, Dict[str, Any]]:
+        """Get the supported curves for this algorithm."""
         return {
             name: {k: v for k, v in info.items() if k != "curve_class"} 
             for name, info in self._supported_curves.items()
@@ -118,5 +127,6 @@ class ECDSAProvider(SignatureAlgorithmProvider, PublicKeyValidator):
         except Exception:
             return False
     
-    def get_supported_formats(self) -> list[str]:
-        return ["PEM", "DER"] 
+    def get_supported_formats(self) -> List[str]:
+        """Get the supported key formats."""
+        return ["PEM", "DER", "JWK"] 

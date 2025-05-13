@@ -1,17 +1,22 @@
+"""
+Core interfaces for the application.
+Defines the interfaces that must be implemented by various components.
+"""
+
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional
+from typing import Dict, Any, List, Optional
 
 
 class SignatureAlgorithmProvider(ABC):
     """
-    Abstract interface for signature algorithm providers.
-    All algorithm implementations should inherit from this interface.
+    Interface for signature algorithm providers.
+    Each provider represents a signature algorithm like ECDSA, RSA, etc.
     """
     
     @abstractmethod
     def get_algorithm_name(self) -> str:
         """
-        Returns the name of the algorithm.
+        Get the name of the algorithm.
         
         Returns:
             str: The algorithm name
@@ -21,7 +26,7 @@ class SignatureAlgorithmProvider(ABC):
     @abstractmethod
     def get_algorithm_type(self) -> str:
         """
-        Returns the type of the algorithm (e.g., ECDSA, RSA, EdDSA).
+        Get the type of the algorithm.
         
         Returns:
             str: The algorithm type
@@ -29,50 +34,38 @@ class SignatureAlgorithmProvider(ABC):
         pass
     
     @abstractmethod
-    def verify(self, 
-               document_hash: str, 
-               signature: str, 
-               public_key: str, 
-               curve_name: Optional[str] = None, 
-               **kwargs) -> bool:
+    def get_supported_curves(self) -> Dict[str, Dict[str, Any]]:
         """
-        Verifies a signature using this algorithm.
+        Get the supported curves or key types for this algorithm.
+        
+        Returns:
+            Dict[str, Dict[str, Any]]: A dictionary mapping curve names to their properties
+        """
+        pass
+    
+    def get_supported_formats(self) -> List[str]:
+        """
+        Get the supported key formats for this algorithm.
+        
+        Returns:
+            List[str]: A list of supported key formats
+        """
+        return ["PEM", "DER"]  # Default formats
+    
+    @abstractmethod
+    def verify(self, data_hash: bytes, signature: bytes, public_key: bytes, 
+               curve_name: str = None) -> bool:
+        """
+        Verify a signature.
         
         Args:
-            document_hash (str): The hash of the document that was signed
-            signature (str): The signature to verify
-            public_key (str): The public key to use for verification
-            curve_name (Optional[str]): The curve name for elliptic curve algorithms
-            **kwargs: Additional parameters specific to the algorithm
+            data_hash (bytes): The hash of the data that was signed
+            signature (bytes): The signature to verify
+            public_key (bytes): The public key to use for verification
+            curve_name (str, optional): The curve or key type to use
             
         Returns:
             bool: True if the signature is valid, False otherwise
-        """
-        pass
-    
-    @abstractmethod
-    def get_supported_curves(self) -> Dict[str, Dict[str, Any]]:
-        """
-        Returns the curves supported by this algorithm, if applicable.
-        
-        Returns:
-            Dict[str, Dict[str, Any]]: Dictionary of curve names to their parameters
-        """
-        pass
-    
-    @abstractmethod
-    def get_curve_parameters(self, curve_name: str) -> Dict[str, Any]:
-        """
-        Returns the parameters for a specific curve.
-        
-        Args:
-            curve_name (str): The name of the curve
-            
-        Returns:
-            Dict[str, Any]: Dictionary of curve parameters
-            
-        Raises:
-            ValueError: If the curve is not supported
         """
         pass
 
