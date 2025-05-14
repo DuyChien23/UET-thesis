@@ -7,7 +7,7 @@ from httpx import AsyncClient
 async def test_get_algorithms(async_client: AsyncClient):
     """Test getting all supported algorithms."""
     # Make the request without authentication as per current implementation
-    response = await async_client.get("/api/v1/algorithms/")
+    response = await async_client.get("/api/algorithms/")
     
     # Check response
     assert response.status_code == 200
@@ -31,7 +31,7 @@ async def test_get_algorithms(async_client: AsyncClient):
 @pytest.mark.asyncio
 async def test_get_default_algorithm(async_client: AsyncClient):
     """Test getting the default algorithm."""
-    response = await async_client.get("/api/v1/algorithms/default")
+    response = await async_client.get("/api/algorithms/default")
     
     # In our test database, there is no default algorithm set up, so we should get a 404
     # But the test should be robust enough to handle both cases
@@ -58,7 +58,7 @@ async def test_get_default_algorithm(async_client: AsyncClient):
 async def test_get_specific_algorithm(async_client: AsyncClient):
     """Test getting a specific algorithm by name."""
     # First, get the list of all algorithms
-    list_response = await async_client.get("/api/v1/algorithms/")
+    list_response = await async_client.get("/api/algorithms/")
     assert list_response.status_code == 200
     algorithms = list_response.json()["items"]
     
@@ -68,13 +68,13 @@ async def test_get_specific_algorithm(async_client: AsyncClient):
         algorithm_name = first_algorithm["name"]
         
         # Get the specific algorithm
-        response = await async_client.get(f"/api/v1/algorithms/{algorithm_name}")
+        response = await async_client.get(f"/api/algorithms/{algorithm_name}")
         assert response.status_code == 200
         data = response.json()
         assert data["name"] == algorithm_name
     
     # Test with a non-existent algorithm
-    response = await async_client.get("/api/v1/algorithms/nonexistent-algorithm")
+    response = await async_client.get("/api/algorithms/nonexistent-algorithm")
     assert response.status_code == 404
     assert "detail" in response.json()
 
@@ -82,7 +82,7 @@ async def test_get_specific_algorithm(async_client: AsyncClient):
 @pytest.mark.asyncio
 async def test_get_nonexistent_algorithm(async_client: AsyncClient):
     """Test getting a non-existent algorithm."""
-    response = await async_client.get("/api/v1/algorithms/nonexistent-algorithm")
+    response = await async_client.get("/api/algorithms/nonexistent-algorithm")
     assert response.status_code == 404
     assert "detail" in response.json()
 
@@ -92,7 +92,7 @@ async def test_get_algorithms_with_auth(async_client: AsyncClient, auth_token):
     """Test getting algorithms with authentication."""
     # Make the request with authentication
     response = await async_client.get(
-        "/api/v1/algorithms/",
+        "/api/algorithms/",
         headers={"Authorization": f"Bearer {auth_token}"}
     )
     

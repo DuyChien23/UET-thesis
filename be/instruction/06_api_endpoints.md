@@ -116,22 +116,16 @@
      - Headers: Authorization: Bearer {access_token}
      - Response: `{ "algorithms": [{"id": "uuid", "name": "string", "type": "string", "description": "string"}] }`
 
-   - `GET /api/algorithms/{algorithm_id}`
-     - Get details for a specific algorithm
+   - `GET /api/algorithms/default`
+     - Get the default algorithm.
      - Headers: Authorization: Bearer {access_token}
-     - Response: `{ "id": "uuid", "name": "string", "type": "ECDSA|RSA|EdDSA|other", "description": "string", "created_at": "datetime" }`
+     - Response: `{ "id": "uuid", "name": "string", "type": "string", "description": "string", "is_default": true, "status": "enabled|disabled", "curves": [{"id": "uuid", "name": "string", "status": "enabled|disabled"}] }`
 
-   - `POST /api/algorithms`
-     - Add a new algorithm (admin only)
+   - `GET /api/algorithms/{algorithm_name}`
+     - Get details for a specific algorithm by name.
      - Headers: Authorization: Bearer {access_token}
-     - Request: `{ "name": "string", "type": "ECDSA|RSA|EdDSA|other", "description": "string" }`
-     - Response: `{ "id": "uuid", "name": "string", "type": "string", "description": "string", "created_at": "datetime" }`
-
-   - `PUT /api/algorithms/{algorithm_id}`
-     - Update an algorithm (admin only)
-     - Headers: Authorization: Bearer {access_token}
-     - Request: `{ "name": "string", "type": "ECDSA|RSA|EdDSA|other", "description": "string" }`
-     - Response: `{ "id": "uuid", "name": "string", "type": "string", "description": "string" }`
+     - Response: `{ "id": "uuid", "name": "string", "type": "string", "description": "string", "is_default": true|false, "status": "enabled|disabled", "curves": [{"id": "uuid", "name": "string", "status": "enabled|disabled"}] }`
+    
 
 2. **Curve Management**
    - `GET /api/curves`

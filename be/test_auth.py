@@ -21,7 +21,7 @@ async def test_register():
     logger.info("Making registration request")
     # Make the request
     async with httpx.AsyncClient(base_url="http://localhost:8000") as client:
-        response = await client.post("/api/v1/auth/register", json=user_data)
+        response = await client.post("/api/auth/register", json=user_data)
     
     logger.info(f"Response received: status={response.status_code}")
     logger.info(f"Response data: {response.text}")

@@ -52,7 +52,7 @@ async def create_test_public_key(async_client, auth_token, key_data):
     }
     
     response = await async_client.post(
-        "/api/v1/public-keys/",
+        "/api/public-keys/",
         json=key_payload,
         headers={"Authorization": f"Bearer {auth_token}"}
     )
@@ -102,7 +102,7 @@ async def test_verify_signature(async_client: AsyncClient, test_user, auth_token
     
     # Make verification request
     response = await async_client.post(
-        "/api/v1/verification/",
+        "/api/verification/",
         json=verification_request,
         headers={"Authorization": f"Bearer {auth_token}"}
     )
@@ -118,7 +118,7 @@ async def test_verify_signature(async_client: AsyncClient, test_user, auth_token
     # Test retrieving verification by ID
     verification_id = data["verification_id"]
     get_response = await async_client.get(
-        f"/api/v1/verification/{verification_id}",
+        f"/api/verification/{verification_id}",
         headers={"Authorization": f"Bearer {auth_token}"}
     )
     
@@ -163,7 +163,7 @@ async def test_verify_invalid_signature(async_client: AsyncClient, test_user, au
     
     # Make verification request
     response = await async_client.post(
-        "/api/v1/verification/",
+        "/api/verification/",
         json=verification_request,
         headers={"Authorization": f"Bearer {auth_token}"}
     )
@@ -189,7 +189,7 @@ async def test_verify_no_auth(async_client: AsyncClient):
     
     # Make verification request without authentication
     response = await async_client.post(
-        "/api/v1/verification/",
+        "/api/verification/",
         json=verification_request
     )
     

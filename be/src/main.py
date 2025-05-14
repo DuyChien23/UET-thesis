@@ -117,7 +117,7 @@ async def shutdown_event():
 
 
 # Include all API routes
-app.include_router(api_router, prefix="/api/v1")
+app.include_router(api_router, prefix="/api")
 
 
 @app.get("/health")
@@ -140,7 +140,7 @@ async def root():
             "redoc": "/redoc",
             "openapi_schema": "/openapi.json",
             "health_check": "/health",
-            "api_base": "/api/v1"
+            "api_base": "/api"
         }
     }
 

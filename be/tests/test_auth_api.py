@@ -39,7 +39,7 @@ async def test_register_user(async_client: AsyncClient):
         logger.info("Making registration request")
         # Make the request
         response = await async_client.post(
-            "/api/v1/auth/register",
+            "/api/auth/register",
             json=user_data
         )
         
@@ -72,7 +72,7 @@ async def test_register_duplicate_username(async_client: AsyncClient, test_user)
     
     # Make the request
     response = await async_client.post(
-        "/api/v1/auth/register",
+        "/api/auth/register",
         json=user_data
     )
     
@@ -96,7 +96,7 @@ async def test_register_duplicate_email(async_client: AsyncClient, test_user):
     
     # Make the request
     response = await async_client.post(
-        "/api/v1/auth/register",
+        "/api/auth/register",
         json=user_data
     )
     
@@ -118,7 +118,7 @@ async def test_login_with_username(async_client: AsyncClient, test_user):
     
     # Make the request with form data
     response = await async_client.post(
-        "/api/v1/auth/token",
+        "/api/auth/token",
         data=login_data,
         headers={"Content-Type": "application/x-www-form-urlencoded"}
     )
@@ -142,7 +142,7 @@ async def test_login_with_email(async_client: AsyncClient, test_user):
     
     # Make the request with form data
     response = await async_client.post(
-        "/api/v1/auth/token",
+        "/api/auth/token",
         data=login_data,
         headers={"Content-Type": "application/x-www-form-urlencoded"}
     )
@@ -166,7 +166,7 @@ async def test_login_invalid_credentials(async_client: AsyncClient, test_user):
     
     # Make the request with form data
     response = await async_client.post(
-        "/api/v1/auth/token",
+        "/api/auth/token",
         data=login_data,
         headers={"Content-Type": "application/x-www-form-urlencoded"}
     )
@@ -189,7 +189,7 @@ async def test_regular_login_with_json(async_client: AsyncClient, test_user):
     
     # Make the request with JSON data
     response = await async_client.post(
-        "/api/v1/auth/login",
+        "/api/auth/login",
         json=login_data
     )
     
@@ -206,7 +206,7 @@ async def test_get_profile(async_client: AsyncClient, test_user, auth_token):
     """Test getting user profile."""
     # Make the request with authentication
     response = await async_client.get(
-        "/api/v1/auth/profile",
+        "/api/auth/profile",
         headers={"Authorization": f"Bearer {auth_token}"}
     )
     
@@ -224,7 +224,7 @@ async def test_get_profile(async_client: AsyncClient, test_user, auth_token):
 async def test_get_profile_no_auth(async_client: AsyncClient):
     """Test getting user profile without authentication."""
     # Make the request without authentication
-    response = await async_client.get("/api/v1/auth/profile")
+    response = await async_client.get("/api/auth/profile")
     
     # Check response
     assert response.status_code == 403  # Forbidden or 401 Unauthorized
@@ -241,7 +241,7 @@ async def test_update_profile(async_client: AsyncClient, test_user, auth_token):
     
     # Make the request with authentication
     response = await async_client.put(
-        "/api/v1/auth/profile",
+        "/api/auth/profile",
         json=update_data,
         headers={"Authorization": f"Bearer {auth_token}"}
     )
@@ -264,7 +264,7 @@ async def test_change_password(async_client: AsyncClient, test_user, auth_token)
     
     # Make the request with authentication
     response = await async_client.post(
-        "/api/v1/auth/change-password",
+        "/api/auth/change-password",
         json=password_data,
         headers={"Authorization": f"Bearer {auth_token}"}
     )
@@ -282,7 +282,7 @@ async def test_change_password(async_client: AsyncClient, test_user, auth_token)
     }
     
     login_response = await async_client.post(
-        "/api/v1/auth/token",
+        "/api/auth/token",
         data=login_data,
         headers={"Content-Type": "application/x-www-form-urlencoded"}
     )
@@ -306,7 +306,7 @@ async def test_basic_user_creation(async_client: AsyncClient):
         logger.info("Making registration request")
         # Make the request
         response = await async_client.post(
-            "/api/v1/auth/register",
+            "/api/auth/register",
             json=user_data
         )
         
