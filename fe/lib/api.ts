@@ -89,9 +89,55 @@ export interface VerifyResponse {
   };
 }
 
-// Helper to get auth header
-export const getAuthHeader = (): HeadersInit => {
-  const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+export interface AlgorithmCreate {
+  name: string;
+  type: string;
+  description?: string;
+  is_default?: boolean;
+}
+
+export interface AlgorithmUpdate {
+  name?: string;
+  type?: string;
+  description?: string;
+  is_default?: boolean;
+  status?: string;
+}
+
+export interface CurveInfo {
+  id: string;
+  name: string;
+  algorithm_id: string;
+  algorithm_name?: string;
+  description?: string;
+  parameters?: Record<string, any>;
+  status: string;
+  created_at?: string;
+}
+
+export interface CurveCreate {
+  name: string;
+  algorithm_id: string;
+  description?: string;
+  parameters: Record<string, any>;
+}
+
+export interface CurveUpdate {
+  name?: string;
+  description?: string;
+  parameters?: Record<string, any>;
+  status?: string;
+}
+
+// Helper to get auth headers
+const getAuthHeader = (): HeadersInit => {
+  const token = localStorage.getItem('token');
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
+// Helper to get auth headers (async version)
+const getAuthHeaders = async (): Promise<HeadersInit> => {
+  const token = localStorage.getItem('token');
   return token ? { Authorization: `Bearer ${token}` } : {};
 };
 
@@ -293,106 +339,138 @@ export const apiService = {
     }
   },
 
-  getCurves: async (algorithmId?: string): Promise<Curve[]> => {
+  createAlgorithm: async (algorithmData: AlgorithmCreate): Promise<Algorithm> => {
     try {
-      // For the response structure shown, we need to get curves in different ways
-      if (algorithmId) {
-        // First try to find the algorithm name from our list of algorithms
-        let algorithm;
-        try {
-          const algorithms = await apiService.getAlgorithms();
-          algorithm = algorithms.find(a => a.id === algorithmId);
-        } catch (e) {
-          console.error('Error fetching algorithms for curve lookup:', e);
-        }
+      console.log('Creating new algorithm:', algorithmData);
+      const response = await fetch(`${API_BASE_URL}/algorithms`, {
+        method: 'POST',
+        headers: {
+          ...getAuthHeader(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(algorithmData),
+      });
 
-        if (algorithm && algorithm.name) {
-          // If we have the algorithm name, use it to get the algorithm details with curves
-          console.log(`Fetching curves for algorithm name: ${algorithm.name}`);
-          try {
-            const algorithmDetails = await apiService.getAlgorithmByName(algorithm.name);
-            if (algorithmDetails && Array.isArray(algorithmDetails.curves)) {
-              const result = algorithmDetails.curves.map((curve: any) => ({
-                id: curve.id,
-                name: curve.name,
-                algorithm_id: algorithmId,
-                algorithm_name: algorithm.name,
-                status: curve.status || 'enabled',
-                parameters: curve.parameters
-              }));
-              console.log('Processed curves from algorithm details:', result);
-              return result;
-            }
-          } catch (e) {
-            console.error(`Error fetching algorithm details for curves: ${e}`);
-          }
-        }
-
-        // Fallback to direct curve fetch if we couldn't get by algorithm name
-        console.log(`Falling back to direct curve fetch for algorithm ID: ${algorithmId}`);
-        const url = `${API_BASE_URL}/curves?algorithm_id=${algorithmId}&status=enabled`;
-        const response = await fetch(url, {
-          method: 'GET',
-          headers: {
-            ...getAuthHeader(),
-          },
-        });
-
-        const data = await handleFetchResponse<any>(response);
-        console.log('Curves response:', data);
-        
-        let result: Curve[] = [];
-        if (data && Array.isArray(data.curves)) {
-          result = data.curves;
-        } else if (Array.isArray(data)) {
-          result = data;
-        }
-        
-        if (result.length > 0) {
-          return result;
-        }
-      } else {
-        // If no algorithm ID is provided, fetch all curves
-        const url = `${API_BASE_URL}/curves?status=enabled`;
-        console.log('Fetching all curves from API...', url);
-        
-        const response = await fetch(url, {
-          method: 'GET',
-          headers: {
-            ...getAuthHeader(),
-          },
-        });
-
-        const data = await handleFetchResponse<any>(response);
-        console.log('Raw curves response:', data);
-        
-        // Handle different response formats for curves endpoint
-        let result: Curve[] = [];
-        if (data && Array.isArray(data.curves)) {
-          result = data.curves;
-        } else if (Array.isArray(data)) {
-          result = data;
-        }
-        
-        console.log('Processed all curves:', result);
-        return result;
-      }
+      const data = await handleFetchResponse<any>(response);
+      console.log('Create algorithm response:', data);
       
-      // Fallback to mock data if needed
-      if (algorithmId && MOCK_CURVES[algorithmId]) {
-        console.log('Using mock curve data');
-        return MOCK_CURVES[algorithmId];
-      }
-      
-      return [];
+      return data;
     } catch (error) {
-      console.error('Get curves API error:', error);
-      if (algorithmId && MOCK_CURVES[algorithmId]) {
-        console.log('Using mock curve data due to API error');
-        return MOCK_CURVES[algorithmId];
-      }
-      return [];
+      console.error('Create algorithm API error:', error);
+      throw error;
     }
+  },
+
+  updateAlgorithm: async (algorithmId: string, algorithmData: AlgorithmUpdate): Promise<Algorithm> => {
+    try {
+      console.log(`Updating algorithm ${algorithmId}:`, algorithmData);
+      const response = await fetch(`${API_BASE_URL}/algorithms/${algorithmId}`, {
+        method: 'PUT',
+        headers: {
+          ...getAuthHeader(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(algorithmData),
+      });
+
+      const data = await handleFetchResponse<any>(response);
+      console.log('Update algorithm response:', data);
+      
+      return data;
+    } catch (error) {
+      console.error('Update algorithm API error:', error);
+      throw error;
+    }
+  },
+
+  deleteAlgorithm: async (algorithmId: string): Promise<any> => {
+    try {
+      console.log(`Deleting algorithm ${algorithmId}`);
+      const response = await fetch(`${API_BASE_URL}/algorithms/${algorithmId}`, {
+        method: 'DELETE',
+        headers: {
+          ...getAuthHeader(),
+        },
+      });
+
+      const data = await handleFetchResponse<any>(response);
+      console.log('Delete algorithm response:', data);
+      
+      return data;
+    } catch (error) {
+      console.error('Delete algorithm API error:', error);
+      throw error;
+    }
+  },
+
+  // Curve endpoints
+  getCurves: async (filters?: { algorithm_id?: string; status?: string }): Promise<CurveInfo[]> => {
+    let url = `${API_BASE_URL}/curves`;
+    const params = new URLSearchParams();
+    
+    if (filters?.algorithm_id) {
+      params.append('algorithm_id', filters.algorithm_id);
+    }
+    
+    if (filters?.status) {
+      params.append('status', filters.status);
+    }
+    
+    const queryString = params.toString();
+    if (queryString) {
+      url = `${url}?${queryString}`;
+    }
+    
+    const headers = await getAuthHeaders();
+    const response = await fetch(url, { headers });
+    
+    const data = await handleFetchResponse(response);
+    return data.curves;
+  },
+  
+  getCurveById: async (curveId: string): Promise<CurveInfo> => {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_BASE_URL}/curves/${curveId}`, { headers });
+    
+    return handleFetchResponse(response);
+  },
+  
+  createCurve: async (curveData: CurveCreate): Promise<CurveInfo> => {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_BASE_URL}/curves`, {
+      method: 'POST',
+      headers: {
+        ...headers,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(curveData),
+    });
+    
+    return handleFetchResponse(response);
+  },
+  
+  updateCurve: async (curveId: string, curveData: CurveUpdate): Promise<CurveInfo> => {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_BASE_URL}/curves/${curveId}`, {
+      method: 'PUT',
+      headers: {
+        ...headers,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(curveData),
+    });
+    
+    return handleFetchResponse(response);
+  },
+  
+  deleteCurve: async (curveId: string): Promise<{ message: string }> => {
+    const headers = await getAuthHeaders();
+    const response = await fetch(`${API_BASE_URL}/curves/${curveId}`, {
+      method: 'DELETE',
+      headers,
+    });
+    
+    return handleFetchResponse(response);
   },
 
   // Document Signing

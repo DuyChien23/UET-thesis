@@ -188,6 +188,47 @@ async def get_current_active_user(
     return current_user
 
 
+async def get_admin_user(
+    current_user = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db_session)
+):
+    """
+    Get the current authenticated user and check if they have admin role.
+    
+    Args:
+        current_user: The current authenticated user
+        db (AsyncSession): Database session
+        
+    Returns:
+        The authenticated admin user
+        
+    Raises:
+        HTTPException: If the user is not an admin
+    """
+    # Create a session factory that returns the db session
+    session_factory = lambda: db
+    user_repo = UserRepository(session_factory)
+    
+    # Get user with roles
+    user_with_roles = await user_repo.get_user_with_roles(current_user.id)
+    
+    # Check if the user has admin role
+    is_admin = False
+    if user_with_roles and user_with_roles.roles:
+        for role in user_with_roles.roles:
+            if role.name.lower() == "admin":
+                is_admin = True
+                break
+    
+    if not is_admin:
+        raise HTTPException(
+            status_code=HTTP_403_FORBIDDEN,
+            detail="Admin access required"
+        )
+    
+    return current_user
+
+
 def has_permission(required_permission: str):
     """
     Dependency to check if the user has a specific permission.

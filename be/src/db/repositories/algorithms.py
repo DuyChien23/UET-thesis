@@ -23,6 +23,21 @@ class AlgorithmRepository(BaseRepository[Algorithm]):
         """Initialize the algorithm repository."""
         super().__init__(Algorithm)
         
+    async def get_by_id(self, db: AsyncSession, algorithm_id: str) -> Optional[Algorithm]:
+        """
+        Get an algorithm by ID.
+        
+        Args:
+            db (AsyncSession): Database session
+            algorithm_id (str): Algorithm ID
+            
+        Returns:
+            Optional[Algorithm]: Algorithm if found, None otherwise
+        """
+        query = select(self.model).where(self.model.id == algorithm_id)
+        result = await db.execute(query)
+        return result.scalars().first()
+        
     async def get_by_name(self, db: AsyncSession, name: str) -> Optional[Algorithm]:
         """
         Get an algorithm by name.
@@ -69,6 +84,21 @@ class CurveRepository(BaseRepository[Curve]):
         """Initialize the curve repository."""
         super().__init__(Curve)
         
+    async def get_by_id(self, db: AsyncSession, curve_id: str) -> Optional[Curve]:
+        """
+        Get a curve by ID.
+        
+        Args:
+            db (AsyncSession): Database session
+            curve_id (str): Curve ID
+            
+        Returns:
+            Optional[Curve]: Curve if found, None otherwise
+        """
+        query = select(self.model).where(self.model.id == curve_id)
+        result = await db.execute(query)
+        return result.scalars().first()
+        
     async def get_by_name(self, db: AsyncSession, name: str) -> Optional[Curve]:
         """
         Get a curve by name.
@@ -84,10 +114,10 @@ class CurveRepository(BaseRepository[Curve]):
         result = await db.execute(query)
         return result.scalars().first()
     
-    async def get_by_algorithm(self, 
-                              db: AsyncSession, 
-                              algorithm_id: UUID,
-                              enabled_only: bool = True) -> List[Curve]:
+    async def get_by_algorithm_id(self, 
+                                db: AsyncSession, 
+                                algorithm_id: UUID,
+                                enabled_only: bool = True) -> List[Curve]:
         """
         Get all curves for an algorithm.
         
@@ -107,6 +137,33 @@ class CurveRepository(BaseRepository[Curve]):
         result = await db.execute(query)
         return result.scalars().all()
     
+    async def get_all_with_filters(self, 
+                                  db: AsyncSession, 
+                                  algorithm_id: Optional[UUID] = None, 
+                                  status: Optional[str] = None) -> List[Curve]:
+        """
+        Get all curves with optional filters.
+        
+        Args:
+            db (AsyncSession): Database session
+            algorithm_id (Optional[UUID]): Filter by algorithm ID
+            status (Optional[str]): Filter by status (enabled/disabled)
+            
+        Returns:
+            List[Curve]: List of curves matching the filters
+        """
+        query = select(self.model)
+        
+        # Apply filters
+        if algorithm_id is not None:
+            query = query.where(self.model.algorithm_id == algorithm_id)
+            
+        if status is not None:
+            query = query.where(self.model.status == status)
+            
+        result = await db.execute(query)
+        return result.scalars().all()
+    
     async def get_default_for_algorithm(self, 
                                        db: AsyncSession, 
                                        algorithm_id: UUID) -> Optional[Curve]:
@@ -121,7 +178,7 @@ class CurveRepository(BaseRepository[Curve]):
             Optional[Curve]: Default curve if found, None otherwise
         """
         # Get all enabled curves for the algorithm
-        curves = await self.get_by_algorithm(db, algorithm_id)
+        curves = await self.get_by_algorithm_id(db, algorithm_id)
         
         # If no curves, return None
         if not curves:

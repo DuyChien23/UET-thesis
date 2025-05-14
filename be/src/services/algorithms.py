@@ -87,13 +87,14 @@ class AlgorithmService(CachedService[Dict[str, Any]]):
         Returns:
             A list of algorithm information dictionaries
         """
-        # Try to get from cache first
+        # Clear cache first to force update
         cache_key = self.get_cache_key()
-        cached_result = await self.get_from_cache(cache_key)
-        
-        if cached_result:
-            logger.info("Found cached algorithm list")
-            return cached_result
+        if self.cache_client:
+            try:
+                await self.cache_client.delete(cache_key)
+                logger.info("Cleared algorithm cache to force update")
+            except Exception as e:
+                logger.warning(f"Failed to clear algorithm cache: {e}")
         
         # Get the information from the database
         async with self.session_factory() as session:
@@ -125,6 +126,8 @@ class AlgorithmService(CachedService[Dict[str, Any]]):
                             curve_info = {
                                 "id": str(curve.id),
                                 "name": curve.name,
+                                "algorithm_id": str(algorithm_with_curves.id),
+                                "algorithm_name": algorithm_with_curves.name,
                                 "description": curve.description,
                                 "parameters": curve.parameters
                             }
@@ -132,7 +135,7 @@ class AlgorithmService(CachedService[Dict[str, Any]]):
                     
                     algorithms.append(algorithm_info)
         
-        # Cache the result
+        # Update the cache
         await self.set_in_cache(cache_key, algorithms)
         
         return algorithms
@@ -155,6 +158,8 @@ class AlgorithmService(CachedService[Dict[str, Any]]):
             for curve in algorithm["curves"]:
                 curve_dict[curve["name"]] = {
                     "id": curve["id"],
+                    "algorithm_id": curve["algorithm_id"],
+                    "algorithm_name": curve["algorithm_name"],
                     "description": curve["description"],
                     "parameters": curve["parameters"]
                 }
@@ -218,6 +223,8 @@ class AlgorithmService(CachedService[Dict[str, Any]]):
                     curve_info = {
                         "id": str(curve.id),
                         "name": curve.name,
+                        "algorithm_id": str(algorithm_with_curves.id),
+                        "algorithm_name": algorithm_with_curves.name,
                         "description": curve.description,
                         "parameters": curve.parameters
                     }
@@ -262,4 +269,465 @@ class AlgorithmService(CachedService[Dict[str, Any]]):
             return algorithms[0]
             
         # No algorithms found
-        raise ValueError("No algorithms found in the database") 
+        raise ValueError("No algorithms found in the database")
+    
+    async def create_algorithm(self, algorithm_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Create a new algorithm in the database.
+        
+        Args:
+            algorithm_data: Dictionary with algorithm data
+            
+        Returns:
+            The created algorithm data
+            
+        Raises:
+            ValueError: If an algorithm with the same name already exists
+        """
+        async with self.session_factory() as session:
+            # Check if algorithm with this name already exists
+            existing_algorithm = await self.algorithm_repository.get_by_name(
+                session, algorithm_data["name"]
+            )
+            
+            if existing_algorithm:
+                raise ValueError(f"Algorithm with name '{algorithm_data['name']}' already exists")
+            
+            # Create algorithm ID
+            algorithm_id = str(uuid.uuid4())
+            
+            # Prepare algorithm data
+            algorithm_entity = {
+                "id": algorithm_id,
+                "name": algorithm_data["name"],
+                "type": algorithm_data["type"],
+                "description": algorithm_data.get("description", ""),
+                "is_default": algorithm_data.get("is_default", False),
+                "status": "enabled"  # New algorithms are enabled by default
+            }
+            
+            # Insert into database
+            created_algorithm = await self.algorithm_repository.create(session, algorithm_entity)
+            await session.commit()
+            
+            # Clear cache
+            if self.cache_client:
+                await self.cache_client.delete(self.get_cache_key())
+                await self.cache_client.delete(self.get_cache_key(algorithm_data["name"]))
+            
+            # Format response
+            result = {
+                "id": str(created_algorithm.id),
+                "name": created_algorithm.name,
+                "type": created_algorithm.type,
+                "description": created_algorithm.description,
+                "is_default": created_algorithm.is_default,
+                "status": created_algorithm.status,
+                "curves": []  # New algorithm has no curves
+            }
+            
+            return result
+    
+    async def update_algorithm(self, algorithm_id: str, algorithm_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Update an existing algorithm.
+        
+        Args:
+            algorithm_id: The ID of the algorithm to update
+            algorithm_data: Dictionary with algorithm update data
+            
+        Returns:
+            The updated algorithm data
+            
+        Raises:
+            KeyError: If the algorithm is not found
+            ValueError: If updating to a name that already exists
+        """
+        async with self.session_factory() as session:
+            # Get the algorithm
+            algorithm = await self.algorithm_repository.get(session, algorithm_id)
+            
+            if not algorithm:
+                raise KeyError(f"Algorithm with ID {algorithm_id} not found")
+            
+            # Check name uniqueness if name is being updated
+            if "name" in algorithm_data and algorithm_data["name"] != algorithm.name:
+                existing = await self.algorithm_repository.get_by_name(
+                    session, algorithm_data["name"]
+                )
+                if existing:
+                    raise ValueError(f"Algorithm with name '{algorithm_data['name']}' already exists")
+            
+            # Clear cache before update
+            if self.cache_client:
+                await self.cache_client.delete(self.get_cache_key())
+                await self.cache_client.delete(self.get_cache_key(algorithm.name))
+            
+            # Prepare update data
+            update_data = {}
+            for field in ["name", "type", "description", "is_default", "status"]:
+                if field in algorithm_data and algorithm_data[field] is not None:
+                    update_data[field] = algorithm_data[field]
+            
+            # Update algorithm
+            updated_algorithm = await self.algorithm_repository.update(
+                session, algorithm.id, update_data
+            )
+            await session.commit()
+            
+            # Format response
+            algorithm_with_curves = await self.algorithm_repository.get_with_curves(
+                session, str(updated_algorithm.id)
+            )
+            
+            result = {
+                "id": str(updated_algorithm.id),
+                "name": updated_algorithm.name,
+                "type": updated_algorithm.type,
+                "description": updated_algorithm.description,
+                "is_default": updated_algorithm.is_default,
+                "status": updated_algorithm.status,
+                "curves": []
+            }
+            
+            # Add curves information
+            if algorithm_with_curves and algorithm_with_curves.curves:
+                for curve in algorithm_with_curves.curves:
+                    if curve.status == "enabled":
+                        curve_info = {
+                            "id": str(curve.id),
+                            "name": curve.name,
+                            "algorithm_id": str(algorithm_with_curves.id),
+                            "algorithm_name": algorithm_with_curves.name,
+                            "description": curve.description,
+                            "parameters": curve.parameters
+                        }
+                        result["curves"].append(curve_info)
+            
+            return result
+    
+    async def delete_algorithm(self, algorithm_id: str) -> Dict[str, Any]:
+        """
+        Delete (disable) an algorithm.
+        
+        Args:
+            algorithm_id: The ID of the algorithm to delete
+            
+        Returns:
+            A dictionary with deletion status
+            
+        Raises:
+            KeyError: If the algorithm is not found
+        """
+        async with self.session_factory() as session:
+            # Get the algorithm
+            algorithm = await self.algorithm_repository.get(session, algorithm_id)
+            
+            if not algorithm:
+                raise KeyError(f"Algorithm with ID {algorithm_id} not found")
+            
+            # Get algorithm name before deletion (for cache clearing)
+            algorithm_name = algorithm.name
+            
+            # Update the algorithm to disabled status (logical deletion)
+            await self.algorithm_repository.update(
+                session, algorithm.id, {"status": "disabled"}
+            )
+            
+            # Disable all curves associated with this algorithm
+            await self.curve_repository.disable_all_by_algorithm(session, algorithm_id)
+            
+            await session.commit()
+            
+            # Clear cache
+            if self.cache_client:
+                await self.cache_client.delete(self.get_cache_key())
+                await self.cache_client.delete(self.get_cache_key(algorithm_name))
+            
+            return {
+                "id": str(algorithm.id),
+                "name": algorithm.name,
+                "status": "disabled",
+                "message": f"Algorithm '{algorithm.name}' has been disabled"
+            }
+    
+    async def create_curve(self, curve_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Create a new curve for an algorithm.
+        
+        Args:
+            curve_data: Dictionary with curve data
+            
+        Returns:
+            The created curve data
+            
+        Raises:
+            KeyError: If the algorithm is not found
+            ValueError: If a curve with the same name already exists for this algorithm
+        """
+        async with self.session_factory() as session:
+            # Check if algorithm exists
+            algorithm = await self.algorithm_repository.get(
+                session, curve_data["algorithm_id"]
+            )
+            
+            if not algorithm:
+                raise KeyError(f"Algorithm with ID {curve_data['algorithm_id']} not found")
+            
+            # Check if curve with this name already exists for this algorithm
+            existing_curve = await self.curve_repository.get_by_name_and_algorithm(
+                session, curve_data["name"], curve_data["algorithm_id"]
+            )
+            
+            if existing_curve:
+                raise ValueError(
+                    f"Curve with name '{curve_data['name']}' already exists for algorithm '{algorithm.name}'"
+                )
+            
+            # Create curve ID
+            curve_id = str(uuid.uuid4())
+            
+            # Prepare curve data
+            curve_entity = {
+                "id": curve_id,
+                "name": curve_data["name"],
+                "algorithm_id": curve_data["algorithm_id"],
+                "description": curve_data.get("description", ""),
+                "parameters": curve_data["parameters"],
+                "status": "enabled"  # New curves are enabled by default
+            }
+            
+            # Insert into database
+            created_curve = await self.curve_repository.create(session, curve_entity)
+            await session.commit()
+            
+            # Clear cache
+            if self.cache_client:
+                await self.cache_client.delete(self.get_cache_key())
+                await self.cache_client.delete(self.get_cache_key(algorithm.name))
+            
+            # Format response
+            result = {
+                "id": str(created_curve.id),
+                "name": created_curve.name,
+                "algorithm_id": str(algorithm.id),
+                "algorithm_name": algorithm.name,
+                "description": created_curve.description,
+                "parameters": created_curve.parameters,
+                "status": created_curve.status
+            }
+            
+            return result
+    
+    async def update_curve(self, curve_id: str, curve_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Update an existing curve.
+        
+        Args:
+            curve_id: The ID of the curve to update
+            curve_data: Dictionary with curve update data
+            
+        Returns:
+            The updated curve data
+            
+        Raises:
+            KeyError: If the curve is not found
+            ValueError: If updating to a name that already exists
+        """
+        async with self.session_factory() as session:
+            # Get the curve
+            curve = await self.curve_repository.get(session, curve_id)
+            
+            if not curve:
+                raise KeyError(f"Curve with ID {curve_id} not found")
+            
+            # Get the algorithm
+            algorithm = await self.algorithm_repository.get(session, str(curve.algorithm_id))
+            
+            if not algorithm:
+                raise KeyError(f"Algorithm with ID {curve.algorithm_id} not found")
+            
+            # Check name uniqueness if name is being updated
+            if "name" in curve_data and curve_data["name"] != curve.name:
+                existing = await self.curve_repository.get_by_name_and_algorithm(
+                    session, curve_data["name"], str(curve.algorithm_id)
+                )
+                if existing:
+                    raise ValueError(
+                        f"Curve with name '{curve_data['name']}' already exists for algorithm '{algorithm.name}'"
+                    )
+            
+            # Clear cache before update
+            if self.cache_client:
+                await self.cache_client.delete(self.get_cache_key())
+                await self.cache_client.delete(self.get_cache_key(algorithm.name))
+            
+            # Prepare update data
+            update_data = {}
+            for field in ["name", "description", "parameters", "status"]:
+                if field in curve_data and curve_data[field] is not None:
+                    update_data[field] = curve_data[field]
+            
+            # Update curve
+            updated_curve = await self.curve_repository.update(
+                session, curve.id, update_data
+            )
+            await session.commit()
+            
+            # Format response
+            result = {
+                "id": str(updated_curve.id),
+                "name": updated_curve.name,
+                "algorithm_id": str(algorithm.id),
+                "algorithm_name": algorithm.name,
+                "description": updated_curve.description,
+                "parameters": updated_curve.parameters,
+                "status": updated_curve.status
+            }
+            
+            return result
+    
+    async def delete_curve(self, curve_id: str) -> Dict[str, Any]:
+        """
+        Delete (disable) a curve.
+        
+        Args:
+            curve_id: The ID of the curve to delete
+            
+        Returns:
+            A dictionary with deletion status
+            
+        Raises:
+            KeyError: If the curve is not found
+        """
+        async with self.session_factory() as session:
+            # Get the curve
+            curve = await self.curve_repository.get(session, curve_id)
+            
+            if not curve:
+                raise KeyError(f"Curve with ID {curve_id} not found")
+            
+            # Get the algorithm for cache clearing
+            algorithm = await self.algorithm_repository.get(session, str(curve.algorithm_id))
+            
+            # Update the curve to disabled status (logical deletion)
+            await self.curve_repository.update(
+                session, curve.id, {"status": "disabled"}
+            )
+            await session.commit()
+            
+            # Clear cache
+            if self.cache_client and algorithm:
+                await self.cache_client.delete(self.get_cache_key())
+                await self.cache_client.delete(self.get_cache_key(algorithm.name))
+            
+            return {
+                "id": str(curve.id),
+                "name": curve.name,
+                "status": "disabled",
+                "message": f"Curve '{curve.name}' has been disabled"
+            }
+    
+    async def get_algorithm_by_id(self, algorithm_id: str) -> Dict[str, Any]:
+        """
+        Get algorithm information by ID.
+        
+        Args:
+            algorithm_id: Algorithm ID
+            
+        Returns:
+            Algorithm information
+            
+        Raises:
+            KeyError: If algorithm with the given ID is not found
+        """
+        async with self.session_factory() as session:
+            algorithm = await self.algorithm_repository.get_by_id(session, algorithm_id)
+            
+            if not algorithm:
+                raise KeyError(f"Algorithm with id '{algorithm_id}' not found")
+            
+            # Get all curves for this algorithm
+            curves = await self.curve_repository.get_by_algorithm_id(session, algorithm_id)
+            
+            result = {
+                "id": algorithm.id,
+                "name": algorithm.name,
+                "type": algorithm.type,
+                "description": algorithm.description,
+                "is_default": algorithm.is_default,
+                "status": algorithm.status,
+                "curves": [{"id": curve.id, "name": curve.name, "status": curve.status} for curve in curves]
+            }
+            
+            return result
+    
+    async def get_curves(self, filters: Dict[str, Any] = None) -> List[Dict[str, Any]]:
+        """
+        Get all curves with optional filtering.
+        
+        Args:
+            filters: Optional filters such as algorithm_id, status
+            
+        Returns:
+            List of curves
+        """
+        if filters is None:
+            filters = {}
+            
+        async with self.session_factory() as session:
+            curves = await self.curve_repository.get_all_with_filters(session, **filters)
+            
+            result = []
+            for curve in curves:
+                # Get algorithm info
+                algorithm = await self.algorithm_repository.get_by_id(session, str(curve.algorithm_id))
+                
+                curve_data = {
+                    "id": str(curve.id),
+                    "name": curve.name,
+                    "algorithm_id": str(curve.algorithm_id),
+                    "algorithm_name": algorithm.name if algorithm else None,
+                    "description": curve.description,
+                    "parameters": curve.parameters,
+                    "status": curve.status,
+                    "created_at": curve.created_at.isoformat() if curve.created_at else None
+                }
+                result.append(curve_data)
+                
+            return result
+    
+    async def get_curve_by_id(self, curve_id: str) -> Dict[str, Any]:
+        """
+        Get curve information by ID.
+        
+        Args:
+            curve_id: Curve ID
+            
+        Returns:
+            Curve information
+            
+        Raises:
+            KeyError: If curve with the given ID is not found
+        """
+        async with self.session_factory() as session:
+            curve = await self.curve_repository.get_by_id(session, curve_id)
+            
+            if not curve:
+                raise KeyError(f"Curve with id '{curve_id}' not found")
+                
+            # Get algorithm info
+            algorithm = await self.algorithm_repository.get_by_id(session, str(curve.algorithm_id))
+            
+            result = {
+                "id": str(curve.id),
+                "name": curve.name,
+                "algorithm_id": str(curve.algorithm_id),
+                "algorithm_name": algorithm.name if algorithm else None,
+                "description": curve.description,
+                "parameters": curve.parameters,
+                "status": curve.status,
+                "created_at": curve.created_at.isoformat() if curve.created_at else None
+            }
+            
+            return result 

@@ -54,6 +54,8 @@ async def load_algorithms_from_db():
                     curve_data = {
                         "id": curve.id,
                         "name": curve.name,
+                        "algorithm_id": str(algorithm.id),
+                        "algorithm_name": algorithm.name,
                         "parameters": curve.parameters,
                         "description": curve.description,
                         "status": curve.status

@@ -24,6 +24,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Loader2, Plus, Edit, Trash2, Info } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
+import { apiService } from "@/lib/api"
+import { getErrorMessage } from "@/lib/errors"
 
 // Types
 type Algorithm = {
@@ -37,12 +39,12 @@ type Algorithm = {
 type Curve = {
   id: string
   name: string
-  algorithmId: string
-  algorithmName: string
+  algorithm_id: string
+  algorithm_name?: string  
   parameters: Record<string, any>
-  description: string
+  description?: string
   status: "enabled" | "disabled"
-  createdAt: string
+  created_at?: string
 }
 
 export default function AlgorithmsPage() {
@@ -76,42 +78,8 @@ export default function AlgorithmsPage() {
     const fetchAlgorithms = async () => {
       setIsLoadingAlgorithms(true)
       try {
-        // This would be a real API call in production
-        // const response = await fetch('/api/algorithms', {
-        //   headers: {
-        //     'Authorization': `Bearer ${localStorage.getItem('token')}`
-        //   }
-        // })
-
-        // Simulate API call
-        await new Promise((resolve) => setTimeout(resolve, 1000))
-
-        // Mock data
-        const mockAlgorithms: Algorithm[] = [
-          {
-            id: "algo-1",
-            name: "ECDSA",
-            type: "ECDSA",
-            description: "Elliptic Curve Digital Signature Algorithm",
-            createdAt: "2023-01-15T10:30:00Z",
-          },
-          {
-            id: "algo-2",
-            name: "RSA",
-            type: "RSA",
-            description: "Rivest–Shamir–Adleman algorithm",
-            createdAt: "2023-01-15T10:35:00Z",
-          },
-          {
-            id: "algo-3",
-            name: "EdDSA",
-            type: "EdDSA",
-            description: "Edwards-curve Digital Signature Algorithm",
-            createdAt: "2023-01-15T10:40:00Z",
-          },
-        ]
-
-        setAlgorithms(mockAlgorithms)
+        const algorithmsData = await apiService.getAlgorithms()
+        setAlgorithms(algorithmsData)
       } catch (error) {
         toast({
           title: "Error",
@@ -131,97 +99,21 @@ export default function AlgorithmsPage() {
     const fetchCurves = async () => {
       setIsLoadingCurves(true)
       try {
-        // This would be a real API call in production
-        // const response = await fetch('/api/curves', {
-        //   headers: {
-        //     'Authorization': `Bearer ${localStorage.getItem('token')}`
-        //   }
-        // })
-
-        // Simulate API call
-        await new Promise((resolve) => setTimeout(resolve, 1000))
-
-        // Mock data
-        const mockCurves: Curve[] = [
-          {
-            id: "curve-1",
-            name: "secp256k1",
-            algorithmId: "algo-1",
-            algorithmName: "ECDSA",
-            parameters: {
-              a: "0",
-              b: "7",
-              p: "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F",
-              n: "0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141",
-              h: "1",
-              Gx: "0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798",
-              Gy: "0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8",
-            },
-            description: "Bitcoin curve, used in blockchain applications",
-            status: "enabled",
-            createdAt: "2023-01-20T11:30:00Z",
-          },
-          {
-            id: "curve-2",
-            name: "P-256",
-            algorithmId: "algo-1",
-            algorithmName: "ECDSA",
-            parameters: {
-              a: "-3",
-              b: "0x5AC635D8AA3A93E7B3EBBD55769886BC651D06B0CC53B0F63BCE3C3E27D2604B",
-              p: "0xFFFFFFFF00000001000000000000000000000000FFFFFFFFFFFFFFFFFFFFFFFF",
-              n: "0xFFFFFFFF00000000FFFFFFFFFFFFFFFFBCE6FAADA7179E84F3B9CAC2FC632551",
-              h: "1",
-              Gx: "0x6B17D1F2E12C4247F8BCE6E563A440F277037D812DEB33A0F4A13945D898C296",
-              Gy: "0x4FE342E2FE1A7F9B8EE7EB4A7C0F9E162BCE33576B315ECECBB6406837BF51F5",
-            },
-            description: "NIST P-256 curve, widely used in TLS",
-            status: "enabled",
-            createdAt: "2023-01-20T11:35:00Z",
-          },
-          {
-            id: "curve-3",
-            name: "Ed25519",
-            algorithmId: "algo-3",
-            algorithmName: "EdDSA",
-            parameters: {
-              a: "-1",
-              d: "-121665/121666",
-              p: "2^255 - 19",
-              n: "2^252 + 27742317777372353535851937790883648493",
-              h: "8",
-              Gx: "15112221349535400772501151409588531511454012693041857206046113283949847762202",
-              Gy: "46316835694926478169428394003475163141307993866256225615783033603165251855960",
-            },
-            description: "Edwards curve, used in modern cryptography",
-            status: "enabled",
-            createdAt: "2023-01-20T11:40:00Z",
-          },
-          {
-            id: "curve-4",
-            name: "P-521",
-            algorithmId: "algo-1",
-            algorithmName: "ECDSA",
-            parameters: {
-              a: "-3",
-              b: "0x051953EB9618E1C9A1F929A21A0B68540EEA2DA725B99B315F3B8B489918EF109E156193951EC7E937B1652C0BD3BB1BF073573DF883D2C34F1EF451FD46B503F00",
-              p: "0x01FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF",
-              n: "0x01FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFA51868783BF2F966B7FCC0148F709A5D03BB5C9B8899C47AEBB6FB71E91386409",
-              h: "1",
-              Gx: "0x00C6858E06B70404E9CD9E3ECB662395B4429C648139053FB521F828AF606B4D3DBAA14B5E77EFE75928FE1DC127A2FFA8DE3348B3C1856A429BF97E7E31C2E5BD66",
-              Gy: "0x011839296A789A3BC0045C8A5FB42C7D1BD998F54449579B446817AFBD17273E662C97EE72995EF42640C550B9013FAD0761353C7086A272C24088BE94769FD16650",
-            },
-            description: "NIST P-521 curve, highest security level",
-            status: "disabled",
-            createdAt: "2023-01-20T11:45:00Z",
-          },
-        ]
-
-        setCurves(mockCurves)
+        let curvesData: Curve[] = []
+        
+        if (selectedAlgorithm) {
+          // If an algorithm is selected, only fetch curves for that algorithm
+          curvesData = await apiService.getCurves({ algorithm_id: selectedAlgorithm.id });
+        } else {
+          // Fetch all curves
+          curvesData = await apiService.getCurves();
+        }
+        
+        setCurves(curvesData)
       } catch (error) {
         toast({
           title: "Error",
-          description: "Failed to load curves",
+          description: `Failed to load curves: ${getErrorMessage(error)}`,
           variant: "destructive",
         })
       } finally {
@@ -230,51 +122,33 @@ export default function AlgorithmsPage() {
     }
 
     fetchCurves()
-  }, [toast])
+  }, [selectedAlgorithm, toast])
 
   // Handle adding a new algorithm
   const handleAddAlgorithm = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      // This would be a real API call in production
-      // const response = await fetch('/api/algorithms', {
-      //   method: 'POST',
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //     'Authorization': `Bearer ${localStorage.getItem('token')}`
-      //   },
-      //   body: JSON.stringify(newAlgorithm)
-      // })
-
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-
-      // Create a mock new algorithm
-      const mockNewAlgorithm: Algorithm = {
-        id: `algo-${Math.random().toString(36).substring(2, 10)}`,
+      const algorithmData = {
         name: newAlgorithm.name,
         type: newAlgorithm.type,
         description: newAlgorithm.description,
-        createdAt: new Date().toISOString(),
+        is_default: false // Default algorithms should be set carefully
       }
 
-      setAlgorithms([...algorithms, mockNewAlgorithm])
+      const createdAlgorithm = await apiService.createAlgorithm(algorithmData)
+      
+      setAlgorithms([...algorithms, createdAlgorithm])
       setIsAddingAlgorithm(false)
-      setNewAlgorithm({
-        name: "",
-        type: "",
-        description: "",
-      })
+      setNewAlgorithm({ name: "", type: "", description: "" })
 
       toast({
         title: "Algorithm Added",
-        description: "The algorithm has been added successfully",
-        variant: "default",
+        description: `Algorithm ${createdAlgorithm.name} has been added successfully.`,
       })
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to add algorithm",
+        description: `Failed to add algorithm: ${getErrorMessage(error)}`,
         variant: "destructive",
       })
     }
@@ -286,36 +160,63 @@ export default function AlgorithmsPage() {
     if (!selectedAlgorithm) return
 
     try {
-      // This would be a real API call in production
-      // const response = await fetch(`/api/algorithms/${selectedAlgorithm.id}`, {
-      //   method: 'PUT',
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //     'Authorization': `Bearer ${localStorage.getItem('token')}`
-      //   },
-      //   body: JSON.stringify({
-      //     name: selectedAlgorithm.name,
-      //     type: selectedAlgorithm.type,
-      //     description: selectedAlgorithm.description
-      //   })
-      // })
+      const algorithmData = {
+        name: selectedAlgorithm.name,
+        type: selectedAlgorithm.type,
+        description: selectedAlgorithm.description
+      }
 
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-
-      // Update local state
-      setAlgorithms(algorithms.map((algo) => (algo.id === selectedAlgorithm.id ? { ...selectedAlgorithm } : algo)))
+      const updatedAlgorithm = await apiService.updateAlgorithm(
+        selectedAlgorithm.id, 
+        algorithmData
+      )
+      
+      setAlgorithms(
+        algorithms.map((algorithm) =>
+          algorithm.id === selectedAlgorithm.id ? updatedAlgorithm : algorithm
+        )
+      )
       setSelectedAlgorithm(null)
 
       toast({
         title: "Algorithm Updated",
-        description: "The algorithm has been updated successfully",
-        variant: "default",
+        description: `Algorithm ${updatedAlgorithm.name} has been updated successfully.`,
       })
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to update algorithm",
+        description: `Failed to update algorithm: ${getErrorMessage(error)}`,
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Handle deleting an algorithm
+  const handleDeleteAlgorithm = async (algorithmId: string) => {
+    if (!confirm("Are you sure you want to delete this algorithm? This will also disable all associated curves.")) {
+      return
+    }
+
+    try {
+      await apiService.deleteAlgorithm(algorithmId)
+      
+      // Update local state to reflect deletion
+      setAlgorithms(algorithms.filter((algorithm) => algorithm.id !== algorithmId))
+      // Update curves list to reflect disabled status
+      setCurves(
+        curves.map((curve) =>
+          curve.algorithm_id === algorithmId ? { ...curve, status: "disabled" } : curve
+        )
+      )
+
+      toast({
+        title: "Algorithm Deleted",
+        description: "Algorithm has been deleted successfully.",
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: `Failed to delete algorithm: ${getErrorMessage(error)}`,
         variant: "destructive",
       })
     }
@@ -325,40 +226,29 @@ export default function AlgorithmsPage() {
   const handleAddCurve = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      // This would be a real API call in production
-      // const response = await fetch('/api/curves', {
-      //   method: 'POST',
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //     'Authorization': `Bearer ${localStorage.getItem('token')}`
-      //   },
-      //   body: JSON.stringify({
-      //     name: newCurve.name,
-      //     algorithm_id: newCurve.algorithmId,
-      //     parameters: JSON.parse(newCurve.parameters),
-      //     description: newCurve.description
-      //   })
-      // })
-
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-
-      // Find the algorithm name
-      const algorithm = algorithms.find((algo) => algo.id === newCurve.algorithmId)
-
-      // Create a mock new curve
-      const mockNewCurve: Curve = {
-        id: `curve-${Math.random().toString(36).substring(2, 10)}`,
-        name: newCurve.name,
-        algorithmId: newCurve.algorithmId,
-        algorithmName: algorithm?.name || "",
-        parameters: JSON.parse(newCurve.parameters),
-        description: newCurve.description,
-        status: "enabled",
-        createdAt: new Date().toISOString(),
+      // Parse JSON parameters
+      let parsedParameters: Record<string, any> = {}
+      try {
+        parsedParameters = JSON.parse(newCurve.parameters as string)
+      } catch (error) {
+        toast({
+          title: "Invalid JSON",
+          description: "Parameters must be a valid JSON object",
+          variant: "destructive",
+        })
+        return
       }
 
-      setCurves([...curves, mockNewCurve])
+      const curveData = {
+        name: newCurve.name,
+        algorithm_id: newCurve.algorithmId,
+        description: newCurve.description,
+        parameters: parsedParameters
+      }
+
+      const createdCurve = await apiService.createCurve(curveData)
+      
+      setCurves([...curves, createdCurve])
       setIsAddingCurve(false)
       setNewCurve({
         name: "",
@@ -369,13 +259,12 @@ export default function AlgorithmsPage() {
 
       toast({
         title: "Curve Added",
-        description: "The curve has been added successfully",
-        variant: "default",
+        description: `Curve ${createdCurve.name} has been added successfully.`,
       })
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to add curve",
+        description: `Failed to add curve: ${getErrorMessage(error)}`,
         variant: "destructive",
       })
     }
@@ -387,72 +276,103 @@ export default function AlgorithmsPage() {
     if (!selectedCurve) return
 
     try {
-      // This would be a real API call in production
-      // const response = await fetch(`/api/curves/${selectedCurve.id}`, {
-      //   method: 'PUT',
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //     'Authorization': `Bearer ${localStorage.getItem('token')}`
-      //   },
-      //   body: JSON.stringify({
-      //     name: selectedCurve.name,
-      //     parameters: selectedCurve.parameters,
-      //     description: selectedCurve.description,
-      //     status: selectedCurve.status
-      //   })
-      // })
+      // Parse JSON parameters
+      let parsedParameters: Record<string, any> = {}
+      if (typeof selectedCurve.parameters === 'string') {
+        try {
+          parsedParameters = JSON.parse(selectedCurve.parameters as string)
+        } catch (error) {
+          toast({
+            title: "Invalid JSON",
+            description: "Parameters must be a valid JSON object",
+            variant: "destructive",
+          })
+          return
+        }
+      } else {
+        parsedParameters = selectedCurve.parameters
+      }
 
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      const curveData = {
+        name: selectedCurve.name,
+        description: selectedCurve.description,
+        parameters: parsedParameters
+      }
 
-      // Update local state
-      setCurves(curves.map((curve) => (curve.id === selectedCurve.id ? { ...selectedCurve } : curve)))
+      const updatedCurve = await apiService.updateCurve(selectedCurve.id, curveData)
+      
+      setCurves(
+        curves.map((curve) =>
+          curve.id === selectedCurve.id ? updatedCurve : curve
+        )
+      )
       setSelectedCurve(null)
 
       toast({
         title: "Curve Updated",
-        description: "The curve has been updated successfully",
-        variant: "default",
+        description: `Curve ${updatedCurve.name} has been updated successfully.`,
       })
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to update curve",
+        description: `Failed to update curve: ${getErrorMessage(error)}`,
         variant: "destructive",
       })
     }
   }
 
-  // Handle toggling curve status
+  // Handle toggling curve status (enabled/disabled)
   const handleToggleCurveStatus = async (curveId: string, newStatus: "enabled" | "disabled") => {
+    const curve = curves.find((c) => c.id === curveId)
+    if (!curve) return
+
+    const statusText = newStatus === "enabled" ? "enable" : "disable"
+    if (!confirm(`Are you sure you want to ${statusText} this curve?`)) {
+      return
+    }
+
     try {
-      // This would be a real API call in production
-      // const response = await fetch(`/api/curves/${curveId}`, {
-      //   method: 'PUT',
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //     'Authorization': `Bearer ${localStorage.getItem('token')}`
-      //   },
-      //   body: JSON.stringify({
-      //     status: newStatus
-      //   })
-      // })
-
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000))
-
-      // Update local state
-      setCurves(curves.map((curve) => (curve.id === curveId ? { ...curve, status: newStatus } : curve)))
+      const updatedCurve = await apiService.updateCurve(curveId, { status: newStatus })
+      
+      setCurves(
+        curves.map((c) =>
+          c.id === curveId ? updatedCurve : c
+        )
+      )
 
       toast({
-        title: "Curve Status Updated",
-        description: `The curve has been ${newStatus === "enabled" ? "enabled" : "disabled"}`,
-        variant: "default",
+        title: "Status Updated",
+        description: `Curve has been ${newStatus === "enabled" ? "enabled" : "disabled"}.`,
       })
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to update curve status",
+        description: `Failed to update curve status: ${getErrorMessage(error)}`,
+        variant: "destructive",
+      })
+    }
+  }
+
+  // Handle deleting a curve
+  const handleDeleteCurve = async (curveId: string) => {
+    if (!confirm("Are you sure you want to delete this curve?")) {
+      return
+    }
+
+    try {
+      await apiService.deleteCurve(curveId)
+      
+      // Update local state to reflect deletion
+      setCurves(curves.filter((curve) => curve.id !== curveId))
+
+      toast({
+        title: "Curve Deleted",
+        description: "Curve has been deleted successfully.",
+      })
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: `Failed to delete curve: ${getErrorMessage(error)}`,
         variant: "destructive",
       })
     }
@@ -575,14 +495,24 @@ export default function AlgorithmsPage() {
                           <TableCell>{algorithm.description}</TableCell>
                           <TableCell>{new Date(algorithm.createdAt).toLocaleDateString()}</TableCell>
                           <TableCell className="text-right">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => setSelectedAlgorithm(algorithm)}
-                              title="Edit Algorithm"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => setSelectedAlgorithm(algorithm)}
+                                title="Edit Algorithm"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleDeleteAlgorithm(algorithm.id)}
+                                title="Delete Algorithm"
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -708,7 +638,7 @@ export default function AlgorithmsPage() {
                       {curves.map((curve) => (
                         <TableRow key={curve.id}>
                           <TableCell className="font-medium">{curve.name}</TableCell>
-                          <TableCell>{curve.algorithmName}</TableCell>
+                          <TableCell>{curve.algorithm_name}</TableCell>
                           <TableCell>{curve.description}</TableCell>
                           <TableCell>
                             {curve.status === "enabled" ? (
@@ -732,16 +662,10 @@ export default function AlgorithmsPage() {
                               <Button
                                 variant="ghost"
                                 size="icon"
-                                onClick={() =>
-                                  handleToggleCurveStatus(curve.id, curve.status === "enabled" ? "disabled" : "enabled")
-                                }
-                                title={curve.status === "enabled" ? "Disable Curve" : "Enable Curve"}
+                                onClick={() => handleDeleteCurve(curve.id)}
+                                title="Delete Curve"
                               >
-                                <Trash2
-                                  className={`h-4 w-4 ${
-                                    curve.status === "enabled" ? "text-destructive" : "text-green-500"
-                                  }`}
-                                />
+                                <Trash2 className="h-4 w-4 text-destructive" />
                               </Button>
                             </div>
                           </TableCell>

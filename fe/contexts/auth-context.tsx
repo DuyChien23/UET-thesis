@@ -67,21 +67,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Save token to localStorage
       localStorage.setItem("token", response.access_token);
       
-      // Set user data
-      setUser({
-        id: response.id,
-        username: response.username,
-        email: response.email,
-        // For now, we'll assume roles might be included in the response directly
-        roles: response.roles || ["user"],
-      });
+      // Try to get user profile immediately after login to get complete user data
+      try {
+        const userData = await apiService.getUserProfile();
+        setUser({
+          id: userData.id,
+          username: userData.username,
+          email: userData.email,
+          roles: userData.roles || ["user"],
+        });
+      } catch (error) {
+        // Fallback to response data if profile fetch fails
+        console.error("Failed to fetch user profile after login:", error);
+        setUser({
+          id: response.id || "",
+          username: response.username || username,
+          email: response.email || "",
+          roles: response.roles || ["user"],
+        });
+      }
       
       router.push("/dashboard");
     } catch (error) {
-      console.error("Login failed:", error)
-      throw error
+      console.error("Login failed:", error);
+      throw error;
     } finally {
-      setIsLoading(false)
+      setIsLoading(false);
     }
   }
 

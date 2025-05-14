@@ -16,7 +16,7 @@ from src.core.algorithms import initialize_algorithms, load_algorithms_from_db
 from src.core.registry import get_algorithm_registry
 from src.services import init_services, shutdown_services
 from src.cache import init_cache, shutdown_cache, get_cache_client
-from src.api.routes import api_router
+from src.api.routes import router as api_router
 
 # Setup logging
 setup_logging()
@@ -117,8 +117,12 @@ async def shutdown_event():
 
 
 # Include all API routes
-app.include_router(api_router, prefix="/api")
+app.include_router(api_router)
 
+@app.get("/test-api")
+async def test_api():
+    """Test API route."""
+    return {"message": "Test API is working"}
 
 @app.get("/health")
 async def health_check():
