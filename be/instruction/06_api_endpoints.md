@@ -279,4 +279,4 @@ Rate limit headers included in all responses:
      - Sign a document with specified algorithm and curve
      - Headers: Authorization: Bearer {access_token}
      - Request: `{ "document": "string", "private_key": "string", "algorithm_id": "uuid", "curve_name": "string" }`
-     - Response: `{ "signature": "string", "document_hash": "string", "signing_id": "uuid", "signing_time": "datetime" }`
+     - Response: `{ "signature": "string", "document_hash": "string", "signing_id": "uuid", "signing_time": "datetime", "public_key": "string" }`

@@ -297,7 +297,16 @@ async def force_seed_algorithms() -> None:
                 "description": "Edwards curve 25519, fast and secure for general use",
                 "parameters": {
                     "bit_size": 256,
-                    "hash_algorithm": "SHA512"
+                    "hash_algorithm": "SHA512",
+                    "p": "0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffed",
+                    "a": "0x7fffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffec",
+                    "d": "0x52036cee2b6ffe738cc740797779e89800700a4d4141d8ab75eb4dca135978a3",
+                    "g": (
+                        (0x216936D3CD6E53FEC0A4E231FDD6DC5C692CC7609525A7B2C9562D608F25D51A, 
+                         0x6666666666666666666666666666666666666666666666666666666666666658)
+                    ),
+                    "n": "0x1000000000000000000000000000000014def9dea2f79cd65812631a5cf5d3ed",
+                    "h": "0x08",
                 },
                 "status": "enabled",
                 "created_at": now,

@@ -2,12 +2,6 @@ from typing import Dict, Any, Optional, List, Tuple
 import base64
 import hashlib
 import random
-from cryptography.hazmat.primitives import hashes
-from cryptography.hazmat.primitives.asymmetric import ec, utils
-from cryptography.hazmat.primitives.serialization import (
-    load_pem_public_key, load_der_public_key,
-    load_pem_private_key, load_der_private_key
-)
 from cryptography.exceptions import InvalidSignature
 
 from src.core.interfaces import SignatureAlgorithmProvider, CurveProvider
@@ -36,9 +30,9 @@ class ECDSAProvider(SignatureAlgorithmProvider):
             bit_size = params.get("bit_size", 256)
  
             hash_map = {
-                "SHA256": hashes.SHA256(),
-                "SHA384": hashes.SHA384(),
-                "SHA512": hashes.SHA512()
+                "SHA256": hashlib.sha256(),
+                "SHA384": hashlib.sha384(),
+                "SHA512": hashlib.sha512()
             }
             
             # Determine hash algorithm based on bit size or explicit name
@@ -46,11 +40,11 @@ class ECDSAProvider(SignatureAlgorithmProvider):
             if hash_algo_name and hash_algo_name in hash_map:
                 hash_algo = hash_map[hash_algo_name]
             elif bit_size <= 256:
-                hash_algo = hashes.SHA256()
+                hash_algo = hashlib.sha256()
             elif bit_size <= 384:
-                hash_algo = hashes.SHA384()
+                hash_algo = hashlib.sha384()
             else:
-                hash_algo = hashes.SHA512()
+                hash_algo = hashlib.sha512()
 
             ecdsaCurve = ECDSACurveProvider(name, params)
             
@@ -93,7 +87,7 @@ class ECDSAProvider(SignatureAlgorithmProvider):
         Verifies an ECDSA signature.
         
         Args:
-            document: document (base64 encoded)
+            document: document hasded by hash algorithm
             signature: The signature value (hex string)
             public_key: public key value (hex string)
             curve_name: The curve to use for verification
@@ -105,21 +99,7 @@ class ECDSAProvider(SignatureAlgorithmProvider):
             raise ValueError(f"Unsupported curve: {curve_name}")
         
         try:
-            # Decode the document
-            document_bytes = base64.b64decode(document)
-            
-            # Get the curve info and hash algorithm
             curve_info = self._supported_curves[curve_name]
-            hash_algorithm = curve_info["hash_algorithm"]
-            
-            # Hash the document
-            hasher = hashlib.new(hash_algorithm.name)
-            hasher.update(document_bytes)
-            document_hash = hasher.digest()
-            
-            # Convert document hash to integer
-            hash_int = int.from_bytes(document_hash, byteorder='big')
-            
             # Convert signature from hex to integer
             signature = signature.lower().strip()
             if signature.startswith('0x'):
@@ -133,15 +113,14 @@ class ECDSAProvider(SignatureAlgorithmProvider):
             public_key_int = int(public_key, 16)
 
             meta_data = {
-                "document_hash": str(hash_int),
+                "document": document,
                 "public_key": public_key,
                 "curve_name": curve_name,
-                "hash_algorithm": hash_algorithm.name,
                 "bit_size": curve_info["bit_size"]
             }
             
             # Use our curve provider to verify
-            return curve_info["curve"].verify(hash_int, signature_int, public_key_int), meta_data
+            return curve_info["curve"].verify(int(document, 16), signature_int, public_key_int), meta_data
                 
         except Exception as e:
             print(f"Verification error: {e}")
@@ -153,7 +132,7 @@ class ECDSAProvider(SignatureAlgorithmProvider):
         Signs a document using ECDSA.
         
         Args:
-            document: document (base64 encoded)
+            document: document hasded by hash algorithm
             private_key: private key value (hex string)
             curve_name: curve to use for signing
             
@@ -164,22 +143,10 @@ class ECDSAProvider(SignatureAlgorithmProvider):
             raise ValueError(f"Unsupported curve: {curve_name}")
         
         try:
-            # Decode the document
-            document_bytes = base64.b64decode(document)
             
             # Get the curve info and hash algorithm
             curve_info = self._supported_curves[curve_name]
-            hash_algorithm = curve_info["hash_algorithm"]
-            
-            # Hash the document
-            hasher = hashlib.new(hash_algorithm.name)
-            hasher.update(document_bytes)
-            document_hash = hasher.digest()
-            document_hash_b64 = base64.b64encode(document_hash).decode()
-            
-            # Convert document hash to integer
-            hash_int = int.from_bytes(document_hash, byteorder='big')
-            
+         
             # Convert private key from hex to integer
             private_key = private_key.lower().strip()
             if private_key.startswith('0x'):
@@ -191,11 +158,11 @@ class ECDSAProvider(SignatureAlgorithmProvider):
             public_key_hex = format(public_key, 'x')
             
             # Sign with our curve provider
-            signature_int, public_key_int = curve_info["curve"].sign(hash_int, priv_key_int)
+            signature_int, public_key_int = curve_info["curve"].sign(int(document, 16), priv_key_int)
             signature_hex = format(signature_int, 'x')
             public_key_hex = format(public_key_int, 'x')
             
-            return signature_hex, document_hash_b64, public_key_hex
+            return signature_hex, document, public_key_hex
                 
         except Exception as e:
             raise ValueError(f"Signing failed: {e}")
