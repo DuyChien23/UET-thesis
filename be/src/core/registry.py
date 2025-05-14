@@ -1,4 +1,4 @@
-from typing import Dict, Optional, List, Type
+from typing import Dict, Optional, List, Type, Union, Any
 from .interfaces import SignatureAlgorithmProvider
 import logging
 from threading import Lock
@@ -42,6 +42,16 @@ class AlgorithmRegistry:
         """
         self._loaded_db_data = data
         logger.info(f"Loaded data for {len(data)} algorithms from database")
+        
+        # Update all providers with the database data
+        for algorithm_name, algorithm_data in data.items():
+            if algorithm_name in self._algorithms:
+                provider = self._algorithms[algorithm_name]
+                try:
+                    provider.configure_from_db_data(algorithm_data)
+                    logger.info(f"Configured provider {algorithm_name} with database data")
+                except Exception as e:
+                    logger.error(f"Failed to configure provider {algorithm_name}: {e}")
     
     def register(self, algorithm_name: str, provider: SignatureAlgorithmProvider) -> None:
         """
@@ -64,6 +74,14 @@ class AlgorithmRegistry:
         if self._default_algorithm is None:
             self._default_algorithm = algorithm_name
             logger.info(f"Set default algorithm to: {algorithm_name}")
+            
+        # If we have database data for this algorithm, configure the provider
+        if algorithm_name in self._loaded_db_data:
+            try:
+                provider.configure_from_db_data(self._loaded_db_data[algorithm_name])
+                logger.info(f"Configured provider {algorithm_name} with database data")
+            except Exception as e:
+                logger.error(f"Failed to configure provider {algorithm_name}: {e}")
     
     def register_algorithm(self, provider: SignatureAlgorithmProvider) -> None:
         """
@@ -190,6 +208,60 @@ class AlgorithmRegistry:
             return None
         
         return algorithm_data["curves"].get(curve_name)
+    
+    def get_all_algorithms(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Get all algorithm data in a structured format.
+        
+        Returns:
+            A dictionary mapping algorithm names to their data
+        """
+        result = {}
+        
+        for algorithm_name, provider in self._algorithms.items():
+            try:
+                supported_curves = provider.get_supported_curves()
+                
+                # Get algorithm data from the database
+                db_data = self.get_algorithm_data(algorithm_name) or {}
+                
+                # Create the algorithm data
+                algorithm_data = {
+                    "name": algorithm_name,
+                    "type": provider.get_algorithm_type(),
+                    "description": db_data.get("description", ""),
+                    "curves": supported_curves
+                }
+                
+                result[algorithm_name] = algorithm_data
+            except Exception as e:
+                logger.error(f"Error getting data for algorithm {algorithm_name}: {e}")
+        
+        return result
+    
+    def find_algorithm_for_curve(self, curve_name: str) -> Optional[Dict[str, Any]]:
+        """
+        Find the algorithm that supports a specific curve.
+        
+        Args:
+            curve_name: The name of the curve
+            
+        Returns:
+            The algorithm data, or None if no algorithm supports this curve
+        """
+        for algorithm_name, provider in self._algorithms.items():
+            try:
+                supported_curves = provider.get_supported_curves()
+                if curve_name in supported_curves:
+                    return {
+                        "name": algorithm_name,
+                        "provider": provider,
+                        "curve_data": supported_curves[curve_name]
+                    }
+            except Exception as e:
+                logger.error(f"Error checking curve support for algorithm {algorithm_name}: {e}")
+        
+        return None
 
 
 # Factory function to get the singleton instance
@@ -221,4 +293,20 @@ def get_algorithm_provider(algorithm_name: str) -> Optional[SignatureAlgorithmPr
         return registry.get_algorithm(algorithm_name)
     except KeyError:
         logger.warning(f"Algorithm provider '{algorithm_name}' not found")
-        return None 
+        return None
+
+
+def find_algorithm_for_curve(curve_name: str) -> Optional[Dict[str, Any]]:
+    """
+    Find the algorithm that supports a specific curve.
+    
+    This is a convenience function to find an algorithm by curve name.
+    
+    Args:
+        curve_name: The name of the curve
+        
+    Returns:
+        The algorithm data, or None if no algorithm supports this curve
+    """
+    registry = get_algorithm_registry()
+    return registry.find_algorithm_for_curve(curve_name) 

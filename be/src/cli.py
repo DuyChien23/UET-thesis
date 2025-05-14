@@ -247,7 +247,15 @@ async def force_seed_algorithms() -> None:
                 "parameters": {
                     "bit_size": 256,
                     "hash_algorithm": "SHA256",
-                    "is_default": True
+                    "is_default": True,
+                    "p": 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEFFFFFC2F,
+                    "a": 0,
+                    "b": 7,
+                    "g": (
+                        0x79BE667EF9DCBBAC55A06295CE870B07029BFCDB2DCE28D959F2815B16F81798,
+                        0x483ADA7726A3C4655DA4FBFC0E1108A8FD17B448A68554199C47D08FFB10D4B8,
+                    ),
+                    "n": 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141,
                 },
                 "status": "enabled",
                 "created_at": now,
@@ -434,7 +442,6 @@ def main() -> None:
     elif args.command == "create-admin":
         asyncio.run(create_admin_user(
             username=args.username,
-            password=args.password,
             email=args.email
         ))
     elif args.command == "force-seed-algorithms":

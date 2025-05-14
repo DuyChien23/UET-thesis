@@ -9,9 +9,9 @@ from sqlalchemy.orm import selectinload
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.registry import get_algorithm_registry
-from src.algorithms.ecdsa.provider import ECDSAProvider
-from src.algorithms.eddsa.provider import EdDSAProvider
-from src.algorithms.rsa.provider import RSAProvider
+from src.core.algorithms.ecdsa.provider import ECDSAProvider
+from src.core.algorithms.eddsa.provider import EdDSAProvider
+from src.core.algorithms.rsa.provider import RSAProvider
 from src.db.session import get_session_factory
 from src.db.models.algorithms import Algorithm, Curve
 

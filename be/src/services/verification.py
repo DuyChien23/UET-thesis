@@ -18,7 +18,7 @@ from src.db.repositories.users import UserRepository
 from src.db.models.verification import VerificationStatus
 from src.services.base import CachedService
 from src.services.public_keys import PublicKeyService
-from src.algorithms.utils import encode_signature, decode_signature
+from src.core.algorithms.utils import encode_signature, decode_signature
 
 logger = logging.getLogger(__name__)
 

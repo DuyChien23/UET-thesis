@@ -12,7 +12,7 @@ from src.config.settings import get_settings
 from src.config.logging import setup_logging
 from src.db.session import get_engine, get_session_factory, close_db_connection
 from src.db.base import Base, load_all_models
-from src.algorithms import initialize_algorithms, load_algorithms_from_db
+from src.core.algorithms import initialize_algorithms, load_algorithms_from_db
 from src.core.registry import get_algorithm_registry
 from src.services import init_services, shutdown_services
 from src.cache import init_cache, shutdown_cache, get_cache_client

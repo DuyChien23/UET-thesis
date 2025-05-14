@@ -11,8 +11,9 @@ from starlette.status import HTTP_400_BAD_REQUEST, HTTP_404_NOT_FOUND
 from src.api.schemas.signing import SignRequest, SignResponse
 from src.db.session import get_db_session
 from src.services import get_signing_service, get_algorithm_service
+from src.core.registry import find_algorithm_for_curve
 
-router = APIRouter(prefix="/signing", tags=["signing"])
+router = APIRouter(prefix="/sign", tags=["signing"])
 
 
 @router.post("", response_model=SignResponse)
@@ -27,23 +28,15 @@ async def sign_document(
     """
     # Get the signing service
     signing_service = get_signing_service()
-    algorithm_service = get_algorithm_service()
     
     # Validate the curve name
     try:
-        # Check if the curve exists
-        curves = await algorithm_service.get_all_curves()
-        curve_found = False
-        
-        for algorithm in curves:
-            if request.curves_name in algorithm["curves"]:
-                curve_found = True
-                break
-                
-        if not curve_found:
+        # Check if the curve exists in any algorithm
+        algorithm_data = find_algorithm_for_curve(request.curve_name)
+        if not algorithm_data:
             raise HTTPException(
                 status_code=HTTP_404_NOT_FOUND,
-                detail=f"Curve with name {request.curves_name} not found"
+                detail=f"Curve with name {request.curve_name} not found"
             )
     except Exception as e:
         raise HTTPException(
@@ -53,23 +46,22 @@ async def sign_document(
     
     # Sign the document
     try:
+        # Generate a unique ID for this signing
+        signing_id = uuid.uuid4()
+        
         result = await signing_service.sign_document(
             document=request.document,
             private_key=request.private_key,
-            curve_name=request.curves_name,
-            metadata=request.metadata
+            curve_name=request.curve_name
         )
         
         # Return the result
-        return SignResponse(
-            id=result["id"],
-            document=result["document"],
-            signature=result["signature"],
-            algorithm_name=result["algorithm_name"],
-            curve_name=result["curve_name"],
-            signing_time=result["signing_time"],
-            metadata=result["metadata"]
-        )
+        return {
+            "signature": result["signature"],
+            "document_hash": result["document_hash"],
+            "signing_id": signing_id,
+            "signing_time": datetime.utcnow()
+        }
     except Exception as e:
         raise HTTPException(
             status_code=HTTP_400_BAD_REQUEST,

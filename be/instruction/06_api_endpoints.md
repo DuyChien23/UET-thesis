@@ -206,8 +206,8 @@
    - `POST /api/verify`
      - Verify a signed document
      - Headers: Authorization: Bearer {access_token}
-     - Request: `{ "document_hash": "string", "signature": "string", "public_key_id": "uuid", "algorithm_id": "uuid", "curve_id": "uuid" }`
-     - Response: `{ "is_valid": true|false, "verification_id": "uuid", "verification_time": "datetime" }`
+     - Request: `{ "document": "string", "signature": "string", "public_key": "string", "algorithm_id": "uuid", "curve_name": "string" }`
+     - Response: `{ "is_valid": true|false, "verification_id": "uuid", "verification_time": "datetime", "document_hash": "string" }`
 
    - `GET /api/verification-records/{verification_id}`
      - Get verification details
@@ -218,7 +218,7 @@
    - `POST /api/verify/batch`
      - Verify multiple signatures at once
      - Headers: Authorization: Bearer {access_token}
-     - Request: `{ "items": [{"document_hash": "string", "signature": "string", "public_key_id": "uuid", "algorithm_id": "uuid", "curve_id": "uuid"}] }`
+     - Request: `{ "items": [{"document": "string", "signature": "string", "public_key": "string", "algorithm_id": "uuid", "curve_name": "string"}] }`
      - Response: `{ "batch_id": "uuid", "total_count": 5, "success_count": 4, "results": [{"index": 0, "is_valid": true, "verification_id": "uuid"}], "verification_time": "datetime" }`
 
    - `GET /api/batch-verifications/{batch_id}`
@@ -270,4 +270,13 @@ All API endpoints are protected by Redis-based rate limiting:
 Rate limit headers included in all responses:
 - `X-RateLimit-Limit`: Maximum requests allowed in the period
 - `X-RateLimit-Remaining`: Remaining requests in the current period
-- `X-RateLimit-Reset`: Time when the rate limit resets (Unix timestamp) 
+- `X-RateLimit-Reset`: Time when the rate limit resets (Unix timestamp)
+
+## Document Signing
+
+1. **Document Signing**
+   - `POST /api/sign`
+     - Sign a document with specified algorithm and curve
+     - Headers: Authorization: Bearer {access_token}
+     - Request: `{ "document": "string", "private_key": "string", "algorithm_id": "uuid", "curve_name": "string" }`
+     - Response: `{ "signature": "string", "document_hash": "string", "signing_id": "uuid", "signing_time": "datetime" }`
