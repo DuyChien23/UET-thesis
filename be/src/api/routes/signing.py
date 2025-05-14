@@ -46,8 +46,6 @@ async def sign_document(
     
     # Sign the document
     try:
-        # Generate a unique ID for this signing
-        signing_id = uuid.uuid4()
         
         result = await signing_service.sign_document(
             document=request.document,
@@ -59,7 +57,7 @@ async def sign_document(
         return {
             "signature": result["signature"],
             "document_hash": result["document_hash"],
-            "signing_id": signing_id,
+            "public_key": result["public_key"],
             "signing_time": datetime.utcnow()
         }
     except Exception as e:

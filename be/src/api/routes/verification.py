@@ -42,15 +42,13 @@ async def verify_signature(
             document=request.document,
             signature=request.signature,
             public_key=request.public_key,
+            algorithm_name=request.algorithm_name,
             curve_name=request.curve_name
         )
         
-        # Return the response
         return {
-            "is_valid": result["is_valid"],
-            "verification_id": verification_id,
-            "verification_time": datetime.utcnow(),
-            "document_hash": result["document_hash"]
+            "verification": result[0],
+            "meta_data": result[1]
         }
     except Exception as e:
         raise HTTPException(

@@ -48,7 +48,7 @@ class SigningService:
             metadata: Additional metadata for the signing
             
         Returns:
-            Dict with signature and metadata
+            Dict with signature, document hash, and public key
         """
         try:
             # Find the algorithm for this curve
@@ -58,23 +58,18 @@ class SigningService:
             
             algorithm_name = algorithm_data["name"]
             provider = algorithm_data["provider"]
-            
-            # Generate a unique ID for this signing
-            signing_id = str(uuid.uuid4())
+        
             
             # Sign the document using the provider
             logger.info(f"Signing document with algorithm {algorithm_name} and curve {curve_name}")
-            signature, document_hash = provider.sign(document, private_key, curve_name)
+            signature, document_hash, public_key = provider.sign(document, private_key, curve_name)
             
             # Return the result
             return {
-                "id": signing_id,
-                "document": document,
                 "signature": signature,
-                "algorithm_name": algorithm_name,
-                "curve_name": curve_name,
+                "document_hash": document_hash,
                 "signing_time": datetime.utcnow(),
-                "metadata": metadata
+                "public_key": public_key
             }
         except Exception as e:
             logger.error(f"Signing failed: {str(e)}")

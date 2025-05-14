@@ -9,14 +9,14 @@ class VerificationRequest(BaseModel):
     signature: str = Field(..., description="Signature to verify")
     public_key: str = Field(..., description="Public key to use for verification")
     curve_name: str = Field(..., description="Name of the curve to use")
+    algorithm_name: str = Field(..., description="Name of the algorithm to use")
+
 
 
 class VerificationResponse(BaseModel):
     """Response schema for signature verification."""
-    is_valid: bool = Field(..., description="Whether the signature is valid")
-    verification_id: UUID4 = Field(..., description="ID of the verification record")
-    verification_time: datetime = Field(..., description="When the verification was performed")
-    document_hash: str = Field(..., description="Hash of the verified document")
+    verification: bool = Field(..., description="Whether the signature is valid")
+    meta_data: Dict[str, Any] = Field(..., description="Metadata of the verification")
 
 
 class BatchVerificationRequest(BaseModel):

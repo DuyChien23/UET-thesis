@@ -26,7 +26,7 @@ class SignatureAlgorithmProvider(ABC):
     
     @abstractmethod
     def verify(self, document: str, signature: str, public_key: str, 
-               curve_name: Optional[str] = None, **kwargs) -> bool:
+               curve_name: Optional[str] = None, **kwargs) -> Tuple[bool, Dict[str, Any]]:
         """
         Verify a signature.
         

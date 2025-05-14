@@ -19,7 +19,7 @@ from src.db.models.verification import VerificationStatus
 from src.services.base import CachedService
 from src.services.public_keys import PublicKeyService
 from src.core.algorithms.utils import encode_signature, decode_signature
-
+from src.core.algorithms.ecdsa.provider import ECDSAProvider
 logger = logging.getLogger(__name__)
 
 
@@ -86,13 +86,12 @@ class VerificationService(CachedService[Dict[str, Any]]):
     
     async def verify_signature(
         self,
-        document_hash: str,
+        document: str,
         signature: str,
-        public_key_id: str,
-        algorithm_name: Optional[str] = None,
-        document_id: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None
-    ) -> bool:
+        public_key: str,
+        algorithm_name: str,
+        curve_name: str,
+    ) -> Tuple[bool, Dict[str, Any]]:
         """
         Verify a digital signature.
         
@@ -105,25 +104,17 @@ class VerificationService(CachedService[Dict[str, Any]]):
             metadata: Additional metadata for the verification
             
         Returns:
-            True if the signature is valid, False otherwise
+            Tuple[bool, Dict[str, Any]]: True if the signature is valid, False otherwise
             
         Raises:
             ValueError: If the public key or algorithm is not found
         """
-        # Get the public key
-        public_key = await self.public_key_service.get_public_key_by_id(public_key_id)
-        if not public_key:
-            raise ValueError(f"Public key with ID {public_key_id} not found")
-        
-        # Get the algorithm provider
-        algorithm = algorithm_name or public_key.algorithm_name
-        provider = get_algorithm_provider(algorithm)
+
+        provider = get_algorithm_provider(algorithm_name)
         if not provider:
-            raise ValueError(f"Algorithm provider '{algorithm}' not found")
+            raise ValueError(f"Algorithm provider '{algorithm_name}' not found")
         
-        # For mock implementation during tests, just return True
-        # In a real implementation, this would use the algorithm provider to verify the signature
-        return True
+        return provider.verify(document, signature, public_key, curve_name)
     
     async def batch_verify_signatures(
         self,

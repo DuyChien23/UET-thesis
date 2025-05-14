@@ -88,7 +88,7 @@ class ECDSAProvider(SignatureAlgorithmProvider):
         return result
     
     def verify(self, document: str, signature: str, public_key: str, 
-               curve_name: Optional[str] = "secp256r1", **kwargs) -> bool:
+               curve_name: Optional[str] = "secp256r1", **kwargs) -> Tuple[bool, Dict[str, Any]]:
         """
         Verifies an ECDSA signature.
         
@@ -131,16 +131,24 @@ class ECDSAProvider(SignatureAlgorithmProvider):
             if public_key.startswith('0x'):
                 public_key = public_key[2:]
             public_key_int = int(public_key, 16)
+
+            meta_data = {
+                "document_hash": str(hash_int),
+                "public_key": public_key,
+                "curve_name": curve_name,
+                "hash_algorithm": hash_algorithm.name,
+                "bit_size": curve_info["bit_size"]
+            }
             
             # Use our curve provider to verify
-            return curve_info["curve"].verify(hash_int, signature_int, public_key_int)
+            return curve_info["curve"].verify(hash_int, signature_int, public_key_int), meta_data
                 
         except Exception as e:
             print(f"Verification error: {e}")
-            return False
+            return False, {"error": str(e)}
     
     def sign(self, document: str, private_key: str, curve_name: Optional[str] = "secp256r1", 
-            **kwargs) -> Tuple[str, str]:
+            **kwargs) -> Tuple[str, str, str]:
         """
         Signs a document using ECDSA.
         
@@ -150,7 +158,7 @@ class ECDSAProvider(SignatureAlgorithmProvider):
             curve_name: curve to use for signing
             
         Returns:
-            Tuple[str, str]: The signature (hex string) and the hash of the document (base64 encoded)
+            Tuple[str, str, str]: The signature (hex string), the hash of the document (base64 encoded), and the public key (hex string)
         """
         if curve_name not in self._supported_curves:
             raise ValueError(f"Unsupported curve: {curve_name}")
@@ -178,15 +186,16 @@ class ECDSAProvider(SignatureAlgorithmProvider):
                 private_key = private_key[2:]
             priv_key_int = int(private_key, 16)
             
+            r, s = curve_info["curve"]._scalar_mult(priv_key_int, curve_info["curve"]._g)
+            public_key = curve_info["curve"]._compress_public_key(r, s)
+            public_key_hex = format(public_key, 'x')
+            
             # Sign with our curve provider
-            signature_int = curve_info["curve"].sign(hash_int, priv_key_int)
-            
-            # Convert signature to hex string
+            signature_int, public_key_int = curve_info["curve"].sign(hash_int, priv_key_int)
             signature_hex = format(signature_int, 'x')
-            if len(signature_hex) % 2 == 1:
-                signature_hex = '0' + signature_hex
+            public_key_hex = format(public_key_int, 'x')
             
-            return signature_hex, document_hash_b64
+            return signature_hex, document_hash_b64, public_key_hex
                 
         except Exception as e:
             raise ValueError(f"Signing failed: {e}")
@@ -345,7 +354,82 @@ class ECDSACurveProvider(CurveProvider):
         
         return result
     
-    def sign(self, message: int, private_key: int) -> int:
+    def _calculate_y_coordinate(self, r: int, y_parity: int) -> int:
+        """
+        Calculate the y-coordinate of a public key from r and y_parity.
+        
+        Args:
+            r: The x-coordinate of the public key point
+            y_parity: The parity of the y-coordinate (0 or 1)
+        
+        Returns:
+            int: The y-coordinate of the public key point
+        """
+        # Calculate y² = x³ + ax + b (mod p)
+        y_squared = (pow(r, 3, self._p) + self._a * r + self._b) % self._p
+        
+        # Calculate the modular square root of y_squared
+        y = pow(y_squared, (self._p + 1) // 4, self._p)
+        
+        # Adjust y based on the parity
+        if y % 2 != y_parity:
+            y = self._p - y
+        
+        return y
+    
+    def _compress_public_key(self, r: int, s: int) -> int:
+        """
+        Compress a public key from r and s coordinates into a single integer.
+        
+        Args:
+            r: The x-coordinate of the public key point
+            s: The y-coordinate of the public key point
+            
+        Returns:
+            int: The compressed public key as a single integer
+        """
+        # Determine the parity of the y-coordinate
+        y_parity = s % 2
+        
+        # Shift the x-coordinate and add the parity bit
+        compressed_key = (r << 1) | y_parity
+        
+        return compressed_key
+    
+    def _decompress_public_key(self, compressed_key: int) -> Tuple[int, int]:
+        """
+        Decompress a public key from a single integer into r and s coordinates.
+        
+        Args:
+            compressed_key: The compressed public key as a single integer
+            
+        Returns:
+            Tuple[int, int]: The r and s coordinates of the public key
+        """
+        # Extract the parity bit
+        y_parity = compressed_key & 1
+        
+        # Extract the x-coordinate
+        r = compressed_key >> 1
+        
+        # Use the curve to calculate the y-coordinate
+        s = self._calculate_y_coordinate(r, y_parity)
+        
+        return r, s
+    
+    def _compress_signature(self, r: int, s: int) -> int:
+        """
+        Compress a signature into a single integer.
+        """
+        return (r << self._n.bit_length()) | s
+    
+    def _decompress_signature(self, signature: int) -> Tuple[int, int]:
+        """
+        Decompress a signature from a single integer into r and s coordinates.
+        """
+        return (signature >> self._n.bit_length(), signature & ((1 << self._n.bit_length()) - 1))
+    
+    def sign(self, message: int, private_key: int) -> Tuple[int, int]:
         """
         Sign a message using ECDSA.
         
@@ -382,50 +466,62 @@ class ECDSACurveProvider(CurveProvider):
             # Encode the signature as a single integer: (r << bits) | s
             # where bits is enough to hold n
             n_bits = self._n.bit_length()
-            signature = (r << n_bits) | s
+            signature = self._compress_signature(r, s)
+            public_key_point = self._scalar_mult(private_key, self._g)
+            public_key = self._compress_public_key(public_key_point[0], public_key_point[1])
             
-            return signature
+            return signature, public_key
+        
+    def _is_on_curve(self, x: int, y: int) -> bool:
+        """
+        Check if a point is on the elliptic curve.
+        """
+
+        return (pow(y, 2, self._p) == (pow(x, 3, self._p) + self._a * x + self._b) % self._p)
 
     def verify(self, message: int, signature: int, public_key: int) -> bool:
         """
         Verify a message using ECDSA.
+
+        Args:
+            message: The message hash as an integer.
+            signature: The signature as a single integer (compressed r||s).
+            public_key: The public key as a compressed integer.
+
+        Returns:
+            bool: True if the signature is valid, False otherwise.
         """
-        # Decode the public key
-        # If public_key is a single integer, split it into x and y coordinates
-        n_bits = self._n.bit_length()
-        
-        if isinstance(public_key, int):
-            x = public_key >> n_bits
-            y = public_key & ((1 << n_bits) - 1)
-            Q = (x, y)
-        else:
-            raise ValueError("Unsupported public key format")
-        
-        # Extract r and s from the signature
-        r = signature >> n_bits
-        s = signature & ((1 << n_bits) - 1)
-        
-        # Check if r and s are in the valid range
-        if not (1 <= r < self._n and 1 <= s < self._n):
+        try:
+            # Decompress signature into r and s
+            r, s = self._decompress_signature(signature)
+
+            if not (1 <= r < self._n) or not (1 <= s < self._n):
+                return False
+
+            # Decompress public key to (x, y)
+            x_pub, y_pub = self._decompress_public_key(public_key)
+
+            if not self._is_on_curve(x_pub, y_pub):
+                return False
+
+            # ECDSA verification
+            w = pow(s, self._n - 2, self._n)  # s^-1 mod n
+            u1 = (message * w) % self._n
+            u2 = (r * w) % self._n
+
+            # Calculate u1*G + u2*Q
+            G = self._g
+            Q = (x_pub, y_pub)
+            point1 = self._scalar_mult(u1, G)
+            point2 = self._scalar_mult(u2, Q)
+            R = self._point_add(point1, point2)
+
+            if R is None:
+                return False
+
+            xR = R[0] % self._n
+
+            return xR == r
+        except Exception:
             return False
-        
-        # Calculate w = s⁻¹ mod n
-        w = pow(s, self._n - 2, self._n)
-        
-        # Calculate u₁ = message·w mod n
-        u1 = (message * w) % self._n
-        
-        # Calculate u₂ = r·w mod n
-        u2 = (r * w) % self._n
-        
-        # Calculate the point P = u₁·G + u₂·Q
-        point1 = self._scalar_mult(u1, self._g)
-        point2 = self._scalar_mult(u2, Q)
-        P = self._point_add(point1, point2)
-        
-        # If P is the point at infinity, the signature is invalid
-        if P is None:
-            return False
-        
-        # The signature is valid if x-coordinate of P mod n equals r
-        return (P[0] % self._n) == r
+       

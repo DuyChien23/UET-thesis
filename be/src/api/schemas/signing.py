@@ -14,5 +14,5 @@ class SignResponse(BaseModel):
     """Response schema for document signing."""
     signature: str = Field(..., description="Generated signature")
     document_hash: str = Field(..., description="Hash of the signed document")
-    signing_id: UUID4 = Field(..., description="ID of the signing record")
+    public_key: str = Field(..., description="Public key used for signing")
     signing_time: datetime = Field(..., description="When the signing was performed") 
