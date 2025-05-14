@@ -371,7 +371,9 @@ class AlgorithmService(CachedService[Dict[str, Any]]):
             
             # Update algorithm
             updated_algorithm = await self.algorithm_repository.update(
-                session, algorithm.id, update_data
+                db=session, 
+                id=algorithm.id, 
+                obj_in=update_data
             )
             await session.commit()
             
@@ -431,7 +433,9 @@ class AlgorithmService(CachedService[Dict[str, Any]]):
             
             # Update the algorithm to disabled status (logical deletion)
             await self.algorithm_repository.update(
-                session, algorithm.id, {"status": "disabled"}
+                db=session, 
+                id=algorithm.id, 
+                obj_in={"status": "disabled"}
             )
             
             # Disable all curves associated with this algorithm
@@ -570,7 +574,9 @@ class AlgorithmService(CachedService[Dict[str, Any]]):
             
             # Update curve
             updated_curve = await self.curve_repository.update(
-                session, curve.id, update_data
+                db=session, 
+                id=curve.id, 
+                obj_in=update_data
             )
             await session.commit()
             
@@ -612,7 +618,9 @@ class AlgorithmService(CachedService[Dict[str, Any]]):
             
             # Update the curve to disabled status (logical deletion)
             await self.curve_repository.update(
-                session, curve.id, {"status": "disabled"}
+                db=session, 
+                id=curve.id, 
+                obj_in={"status": "disabled"}
             )
             await session.commit()
             

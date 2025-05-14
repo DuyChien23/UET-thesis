@@ -35,8 +35,7 @@ async def get_curves():
 
 @router.get("/{curve_id}", response_model=CurveInfo)
 async def get_curve(
-    curve_id: str = Path(..., description="The curve ID"),
-    current_user: UserResponse = Depends(get_current_user)
+    curve_id: str = Path(..., description="The curve ID")
 ):
     """
     Get details for a specific curve.

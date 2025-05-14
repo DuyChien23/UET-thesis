@@ -296,7 +296,8 @@ export default function AlgorithmsPage() {
       const curveData = {
         name: selectedCurve.name,
         description: selectedCurve.description,
-        parameters: parsedParameters
+        parameters: parsedParameters,
+        status: selectedCurve.status,
       }
 
       const updatedCurve = await apiService.updateCurve(selectedCurve.id, curveData)
