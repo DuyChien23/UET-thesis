@@ -137,6 +137,37 @@ class AlgorithmService(CachedService[Dict[str, Any]]):
         
         return algorithms
     
+    async def get_all_curves(self) -> List[Dict[str, Any]]:
+        """
+        Get information about all curves across all algorithms.
+        Returns data in a format suitable for the signing API.
+        
+        Returns:
+            A list of algorithm information dictionaries with their curves
+        """
+        # Get all algorithms from database
+        algorithms = await self.get_all_algorithms()
+        
+        # Reformat the data for curve lookup
+        result = []
+        for algorithm in algorithms:
+            curve_dict = {}
+            for curve in algorithm["curves"]:
+                curve_dict[curve["name"]] = {
+                    "id": curve["id"],
+                    "description": curve["description"],
+                    "parameters": curve["parameters"]
+                }
+                
+            if curve_dict:  # Only include algorithms that have curves
+                result.append({
+                    "algorithm_name": algorithm["name"],
+                    "algorithm_type": algorithm["type"],
+                    "curves": curve_dict
+                })
+                
+        return result
+    
     async def get_algorithm_info(self, algorithm_name: str) -> Dict[str, Any]:
         """
         Get detailed information about a specific algorithm.
