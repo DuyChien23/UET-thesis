@@ -69,6 +69,26 @@ export interface SignResponse {
   public_key: string;
 }
 
+export interface VerifyRequest {
+  document: string;
+  signature: string;
+  public_key: string;
+  algorithm_id: string;
+  curve_name: string;
+}
+
+export interface VerifyResponse {
+  verification: boolean;
+  meta_data: {
+    document: string;
+    public_key: string;
+    curve_name: string;
+    bit_size: number;
+    verification_id?: string;
+    verification_time?: string;
+  };
+}
+
 // Helper to get auth header
 export const getAuthHeader = (): HeadersInit => {
   const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
@@ -421,6 +441,101 @@ export const apiService = {
       return await handleFetchResponse<SignResponse>(response);
     } catch (error) {
       console.error('Sign document API error:', error);
+      throw error;
+    }
+  },
+
+  // Document Verification
+  verifyDocument: async (
+    document: string, 
+    signature: string, 
+    publicKey: string, 
+    algorithmId: string,
+    curveName: string
+  ): Promise<VerifyResponse> => {
+    try {
+      // Get the algorithm to pass its name to the API
+      let algorithmName = "";
+      try {
+        const algorithms = await apiService.getAlgorithms();
+        const algorithm = algorithms.find(a => a.id === algorithmId);
+        if (algorithm) {
+          algorithmName = algorithm.name;
+        }
+      } catch (e) {
+        console.error('Error getting algorithm name:', e);
+      }
+
+      if (!algorithmName) {
+        // Fallback to mock data if needed
+        const mockAlgo = MOCK_ALGORITHMS.find(a => a.id === algorithmId);
+        algorithmName = mockAlgo?.name || "ECDSA";
+      }
+
+      // Hash the document according to the curve type - similar to signing process
+      let hashedDocument = '';
+      try {
+        // Get curve parameters if available
+        let curveParameters = null;
+        
+        // Try to find the curve parameters in our data
+        for (const algoKey in MOCK_CURVES) {
+          const curves = MOCK_CURVES[algoKey];
+          const curve = curves.find(c => c.name === curveName);
+          if (curve && curve.parameters) {
+            curveParameters = curve.parameters;
+            break;
+          }
+        }
+        
+        // Dynamically import the crypto module
+        const cryptoModule = await import('./crypto');
+        hashedDocument = await cryptoModule.calculateDocumentHash(document, curveName, curveParameters, true);
+        console.log('Document hashed as integer for verification:', hashedDocument);
+      } catch (err) {
+        console.error('Error hashing document for verification:', err);
+        throw new Error('Failed to hash document for verification');
+      }
+
+      console.log(`Verifying document with algorithm: ${algorithmName}, curve: ${curveName}`);
+      const response = await fetch(`${API_BASE_URL}/verify`, {
+        method: 'POST',
+        headers: {
+          ...getAuthHeader(),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          document: hashedDocument,
+          signature: signature,
+          public_key: publicKey,
+          algorithm_name: algorithmName,
+          curve_name: curveName
+        }),
+      });
+
+      const data = await handleFetchResponse<any>(response);
+      console.log('Verification response:', data);
+      
+      // Determine if the response matches our expected format
+      // If it doesn't have the verification field, but has other fields, map it to our format
+      if (data.verification === undefined && data.is_valid !== undefined) {
+        return {
+          verification: data.is_valid,
+          meta_data: {
+            document: data.document_hash || hashedDocument,
+            public_key: publicKey,
+            curve_name: curveName,
+            bit_size: 256, // default
+            verification_id: data.verification_id,
+            verification_time: data.verification_time
+          }
+        };
+      }
+
+      // Return the data directly if it matches our interface
+      return data;
+    } catch (error) {
+      console.error('Verify document API error:', error);
       throw error;
     }
   },
