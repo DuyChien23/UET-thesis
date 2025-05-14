@@ -7,7 +7,7 @@ import json
 import hashlib
 import logging
 import base64
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional, Tuple, List
 from datetime import datetime
 import uuid
 
@@ -202,13 +202,113 @@ class VerificationService(CachedService[Dict[str, Any]]):
             
         return {
             "id": str(record.id),
-            "public_key_id": str(record.public_key_id),
-            "user_id": str(record.user_id) if record.user_id else None,
-            "document_id": record.document_id,
             "document_hash": record.document_hash,
             "signature": record.signature,
             "algorithm_name": record.algorithm_name,
+            "curve_name": record.curve_name,
+            "public_key_id": str(record.public_key_id),
             "status": record.status,
-            "verified_at": record.verified_at.isoformat(),
-            "metadata": record.metadata
-        } 
+            "verified_at": record.verified_at,
+            "verification_metadata": record.verification_metadata
+        }
+    
+    async def get_user_verification_history(
+        self,
+        user_id: str,
+        limit: int = 20,
+        offset: int = 0,
+        status: Optional[str] = None,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None
+    ) -> Dict[str, Any]:
+        """
+        Get verification history for a user.
+        
+        Args:
+            user_id: The user ID
+            limit: Maximum number of records to return
+            offset: Number of records to skip
+            status: Filter by verification status
+            start_date: Filter by verified_at (start date)
+            end_date: Filter by verified_at (end date)
+            
+        Returns:
+            Dictionary with verification records and pagination metadata
+        """
+        if not self.verification_repo:
+            logger.warning("VerificationRepository not provided")
+            return {"items": [], "total_count": 0, "offset": offset, "limit": limit}
+            
+        filters = {"user_id": user_id}
+        
+        if status:
+            filters["status"] = status
+            
+        # Get total count first
+        total_count = await self.verification_repo.count(
+            filters=filters,
+            start_date=start_date,
+            end_date=end_date
+        )
+        
+        # Get records with pagination
+        records = await self.verification_repo.get_filtered_records(
+            filters=filters,
+            limit=limit,
+            offset=offset,
+            start_date=start_date,
+            end_date=end_date,
+            order_by="verified_at",
+            order_desc=True
+        )
+        
+        # Transform records to API schema format
+        items = []
+        for record in records:
+            items.append({
+                "id": str(record.id),
+                "document_hash": record.document_hash,
+                "public_key_id": str(record.public_key_id),
+                "algorithm_name": record.algorithm_name,
+                "curve_name": record.curve_name,
+                "status": record.status,
+                "verified_at": record.verified_at,
+                "metadata": record.verification_metadata
+            })
+            
+        return {
+            "items": items,
+            "total_count": total_count,
+            "offset": offset,
+            "limit": limit
+        }
+        
+    async def delete_verification_record(self, record_id: str) -> bool:
+        """
+        Delete a verification record.
+        
+        Args:
+            record_id: The ID of the verification record to delete
+            
+        Returns:
+            bool: True if the record was deleted, False otherwise
+        """
+        if not self.verification_repo:
+            logger.warning("VerificationRepository not provided")
+            return False
+            
+        try:
+            # Convert string ID to UUID if needed
+            try:
+                record_uuid = uuid.UUID(record_id)
+            except ValueError:
+                logger.error(f"Invalid UUID format for record_id: {record_id}")
+                return False
+                
+            # Delete the record
+            success = await self.verification_repo.delete(record_uuid)
+            
+            return success
+        except Exception as e:
+            logger.error(f"Error deleting verification record: {str(e)}")
+            return False 

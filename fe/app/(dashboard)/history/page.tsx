@@ -17,118 +17,258 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Label } from "@/components/ui/label"
-import { Loader2, Search, FileCheck, FileX, Download, Eye, Calendar } from "lucide-react"
+import { Loader2, Search, FileCheck, FileX, Download, Eye, Calendar, Trash2, AlertTriangle } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/contexts/auth-context"
 import { format } from "date-fns"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 // Types
 type VerificationRecord = {
   id: string
-  documentHash: string
-  publicKeyId: string
-  algorithmName: string
-  curveName: string
-  isValid: boolean
-  verificationTime: string
+  document_hash: string
+  public_key_id: string
+  algorithm_name: string
+  curve_name: string
+  status: string
+  verified_at: string
   metadata?: Record<string, any>
+}
+
+type VerificationHistoryResponse = {
+  items: VerificationRecord[]
+  total_count: number
+  offset: number
+  limit: number
 }
 
 export default function HistoryPage() {
   const [records, setRecords] = useState<VerificationRecord[]>([])
+  const [totalCount, setTotalCount] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [validFilter, setValidFilter] = useState("all")
   const [dateFilter, setDateFilter] = useState("all")
   const [selectedRecord, setSelectedRecord] = useState<VerificationRecord | null>(null)
+  const [recordToDelete, setRecordToDelete] = useState<string | null>(null)
+  const [isDeletingRecord, setIsDeletingRecord] = useState(false)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [limit] = useState(10)
   const { toast } = useToast()
-  const { user } = useAuth()
+  const { token } = useAuth()
+
+  const fetchRecords = async (page = 1, status: string | null = null, dateRange: string | null = null) => {
+    if (!token) return
+    
+    setIsLoading(true)
+    try {
+      console.log("API URL:", process.env.NEXT_PUBLIC_API_URL)
+      console.log("Token available:", !!token)
+      
+      // Calculate offset based on page number
+      const offset = (page - 1) * limit
+      
+      // Build query parameters
+      let queryParams = new URLSearchParams({
+        limit: limit.toString(),
+        offset: offset.toString()
+      })
+      
+      // Add status filter if selected
+      if (status && status !== "all") {
+        queryParams.append("status", status === "valid" ? "success" : "failure")
+      }
+      
+      // Add date filter if selected
+      if (dateRange && dateRange !== "all") {
+        const now = new Date()
+        let startDate: Date
+        
+        if (dateRange === "today") {
+          startDate = new Date(now.setHours(0, 0, 0, 0))
+        } else if (dateRange === "week") {
+          startDate = new Date(now.setDate(now.getDate() - 7))
+        } else if (dateRange === "month") {
+          startDate = new Date(now.setMonth(now.getMonth() - 1))
+        } else {
+          startDate = new Date(now.setFullYear(now.getFullYear() - 1))
+        }
+        
+        queryParams.append("start_date", startDate.toISOString())
+      }
+      
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/verify/history/user?${queryParams.toString()}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      )
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch verification history')
+      }
+      
+      const data: VerificationHistoryResponse = await response.json()
+      setRecords(data.items)
+      setTotalCount(data.total_count)
+      setCurrentPage(page)
+    } catch (error) {
+      console.error('Error fetching records:', error)
+      toast({
+        title: "Error",
+        description: "Failed to load verification history",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   useEffect(() => {
-    const fetchRecords = async () => {
-      setIsLoading(true)
-      try {
-        // This would be a real API call in production
-        // const response = await fetch('/api/users/me/verification-history', {
-        //   headers: {
-        //     'Authorization': `Bearer ${localStorage.getItem('token')}`
-        //   }
-        // })
-
-        // Simulate API call
-        await new Promise((resolve) => setTimeout(resolve, 1500))
-
-        // Mock data
-        const mockRecords: VerificationRecord[] = Array(15)
-          .fill(0)
-          .map((_, index) => {
-            const isValid = Math.random() > 0.3
-            const date = new Date()
-            date.setDate(date.getDate() - Math.floor(Math.random() * 30))
-
-            return {
-              id: `ver-${Math.random().toString(36).substring(2, 10)}`,
-              documentHash: `hash-${Math.random().toString(36).substring(2, 15)}`,
-              publicKeyId: `key-${(index % 3) + 1}`,
-              algorithmName: ["ECDSA", "RSA", "EdDSA"][index % 3],
-              curveName: ["secp256k1", "P-256", "Ed25519", "P-521"][index % 4],
-              isValid,
-              verificationTime: date.toISOString(),
-              metadata: {
-                documentType: ["PDF", "Word", "Text", "Image"][index % 4],
-                documentName: `document-${index + 1}.${["pdf", "docx", "txt", "jpg"][index % 4]}`,
-                ipAddress: `192.168.1.${index + 1}`,
-                userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-              },
-            }
-          })
-
-        setRecords(mockRecords)
-      } catch (error) {
-        toast({
-          title: "Error",
-          description: "Failed to load verification history",
-          variant: "destructive",
-        })
-      } finally {
-        setIsLoading(false)
-      }
+    if (token) {
+      fetchRecords(currentPage, validFilter, dateFilter)
     }
+  }, [token])
 
-    fetchRecords()
-  }, [toast])
+  // Apply filters
+  const applyFilters = () => {
+    fetchRecords(1, validFilter, dateFilter)
+  }
+  
+  // When filter values change, reset to first page
+  useEffect(() => {
+    if (token && !isLoading) {
+      applyFilters()
+    }
+  }, [validFilter, dateFilter])
 
-  const filteredRecords = records.filter((record) => {
-    const matchesSearch =
-      record.documentHash.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      record.algorithmName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      record.curveName.toLowerCase().includes(searchTerm.toLowerCase())
+  const handleExport = async () => {
+    if (!token) return
+    
+    try {
+      // Call the export API
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/verify/history/export`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      )
+      
+      if (!response.ok) {
+        throw new Error('Failed to export verification history')
+      }
+      
+      // Get the blob data
+      const blob = await response.blob()
+      
+      // Create a download link
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.style.display = 'none'
+      a.href = url
+      
+      // Get current date for filename
+      const date = new Date().toISOString().split('T')[0]
+      a.download = `verification-history-${date}.csv`
+      
+      // Trigger download
+      document.body.appendChild(a)
+      a.click()
+      
+      // Cleanup
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+      
+      toast({
+        title: "Export Complete",
+        description: "Verification history has been exported to CSV",
+        variant: "default",
+      })
+    } catch (error) {
+      console.error('Error exporting history:', error)
+      toast({
+        title: "Export Failed",
+        description: "Failed to export verification history",
+        variant: "destructive",
+      })
+    }
+  }
+  
+  const handleDeleteRecord = async () => {
+    if (!token || !recordToDelete) return
+    
+    setIsDeletingRecord(true)
+    try {
+      const response = await fetch(
+        `${process.env.NEXT_PUBLIC_API_URL}/api/verify/records/${recordToDelete}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        }
+      )
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.detail || 'Failed to delete verification record')
+      }
+      
+      // Update state to remove the deleted record
+      setRecords(prevRecords => prevRecords.filter(record => record.id !== recordToDelete))
+      
+      // If the deleted record was selected for viewing, close that dialog
+      if (selectedRecord && selectedRecord.id === recordToDelete) {
+        setSelectedRecord(null)
+      }
+      
+      // Close the delete dialog
+      setRecordToDelete(null)
+      
+      toast({
+        title: "Record Deleted",
+        description: "Verification record has been deleted successfully",
+        variant: "default",
+      })
+    } catch (error) {
+      console.error('Error deleting record:', error)
+      toast({
+        title: "Delete Failed",
+        description: error instanceof Error ? error.message : "Failed to delete verification record",
+        variant: "destructive",
+      })
+    } finally {
+      setIsDeletingRecord(false)
+    }
+  }
 
-    const matchesValid =
-      validFilter === "all" ||
-      (validFilter === "valid" && record.isValid) ||
-      (validFilter === "invalid" && !record.isValid)
+  // Calculate total pages for pagination
+  const totalPages = Math.ceil(totalCount / limit)
+  
+  // Filter records by search term client-side
+  const filteredRecords = records.filter(record => 
+    record.document_hash.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    record.algorithm_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (record.curve_name && record.curve_name.toLowerCase().includes(searchTerm.toLowerCase()))
+  )
 
-    const recordDate = new Date(record.verificationTime)
-    const now = new Date()
-    const matchesDate =
-      dateFilter === "all" ||
-      (dateFilter === "today" &&
-        recordDate.getDate() === now.getDate() &&
-        recordDate.getMonth() === now.getMonth() &&
-        recordDate.getFullYear() === now.getFullYear()) ||
-      (dateFilter === "week" && now.getTime() - recordDate.getTime() < 7 * 24 * 60 * 60 * 1000) ||
-      (dateFilter === "month" && now.getTime() - recordDate.getTime() < 30 * 24 * 60 * 60 * 1000)
-
-    return matchesSearch && matchesValid && matchesDate
-  })
-
-  const handleExport = () => {
-    toast({
-      title: "Export Started",
-      description: "Verification history is being exported to CSV",
-      variant: "default",
-    })
+  // Pagination controls
+  const goToPage = (page: number) => {
+    if (page < 1 || page > totalPages) return
+    fetchRecords(page, validFilter, dateFilter)
   }
 
   return (
@@ -209,49 +349,88 @@ export default function HistoryPage() {
                 <p className="text-muted-foreground mt-1">No verification records match your current filters</p>
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Document Hash</TableHead>
-                    <TableHead>Algorithm</TableHead>
-                    <TableHead>Curve</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Time</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredRecords.map((record) => (
-                    <TableRow key={record.id}>
-                      <TableCell className="font-mono text-xs max-w-[200px] truncate">{record.documentHash}</TableCell>
-                      <TableCell>{record.algorithmName}</TableCell>
-                      <TableCell>{record.curveName}</TableCell>
-                      <TableCell>
-                        {record.isValid ? (
-                          <Badge className="bg-green-500 flex items-center gap-1">
-                            <FileCheck className="h-3 w-3" /> Valid
-                          </Badge>
-                        ) : (
-                          <Badge variant="destructive" className="flex items-center gap-1">
-                            <FileX className="h-3 w-3" /> Invalid
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell>{format(new Date(record.verificationTime), "MMM d, yyyy HH:mm")}</TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          onClick={() => setSelectedRecord(record)}
-                          title="View Details"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                      </TableCell>
+              <>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Document Hash</TableHead>
+                      <TableHead>Algorithm</TableHead>
+                      <TableHead>Curve</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Time</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredRecords.map((record) => (
+                      <TableRow key={record.id}>
+                        <TableCell className="font-mono text-xs max-w-[200px] truncate">{record.document_hash}</TableCell>
+                        <TableCell>{record.algorithm_name}</TableCell>
+                        <TableCell>{record.curve_name || 'N/A'}</TableCell>
+                        <TableCell>
+                          {record.status === 'success' ? (
+                            <Badge className="bg-green-500 flex items-center gap-1">
+                              <FileCheck className="h-3 w-3" /> Valid
+                            </Badge>
+                          ) : (
+                            <Badge variant="destructive" className="flex items-center gap-1">
+                              <FileX className="h-3 w-3" /> Invalid
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>{format(new Date(record.verified_at), "MMM d, yyyy HH:mm")}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-2">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setSelectedRecord(record)}
+                              title="View Details"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setRecordToDelete(record.id)}
+                              title="Delete Record"
+                            >
+                              <Trash2 className="h-4 w-4 text-destructive" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+                
+                {/* Pagination */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-center gap-2 mt-6">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => goToPage(currentPage - 1)}
+                      disabled={currentPage === 1}
+                    >
+                      Previous
+                    </Button>
+                    
+                    <span className="text-sm text-muted-foreground">
+                      Page {currentPage} of {totalPages}
+                    </span>
+                    
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => goToPage(currentPage + 1)}
+                      disabled={currentPage === totalPages}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                )}
+              </>
             )}
           </CardContent>
         </Card>
@@ -268,7 +447,7 @@ export default function HistoryPage() {
               <div className="space-y-4 py-4">
                 <div className="flex items-center justify-between">
                   <span className="font-medium">Status</span>
-                  {selectedRecord.isValid ? (
+                  {selectedRecord.status === 'success' ? (
                     <Badge className="bg-green-500 flex items-center gap-1">
                       <FileCheck className="h-3 w-3" /> Valid
                     </Badge>
@@ -281,28 +460,28 @@ export default function HistoryPage() {
 
                 <div>
                   <Label className="text-muted-foreground">Document Hash</Label>
-                  <p className="font-mono text-xs bg-muted p-2 rounded mt-1">{selectedRecord.documentHash}</p>
+                  <p className="font-mono text-xs bg-muted p-2 rounded mt-1">{selectedRecord.document_hash}</p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <Label className="text-muted-foreground">Algorithm</Label>
-                    <p className="font-medium">{selectedRecord.algorithmName}</p>
+                    <p className="font-medium">{selectedRecord.algorithm_name}</p>
                   </div>
                   <div>
                     <Label className="text-muted-foreground">Curve</Label>
-                    <p className="font-medium">{selectedRecord.curveName}</p>
+                    <p className="font-medium">{selectedRecord.curve_name || 'N/A'}</p>
                   </div>
                 </div>
 
                 <div>
                   <Label className="text-muted-foreground">Public Key ID</Label>
-                  <p className="font-medium">{selectedRecord.publicKeyId}</p>
+                  <p className="font-medium">{selectedRecord.public_key_id}</p>
                 </div>
 
                 <div>
                   <Label className="text-muted-foreground">Verification Time</Label>
-                  <p className="font-medium">{format(new Date(selectedRecord.verificationTime), "PPpp")}</p>
+                  <p className="font-medium">{format(new Date(selectedRecord.verified_at), "PPpp")}</p>
                 </div>
 
                 {selectedRecord.metadata && (
@@ -312,7 +491,7 @@ export default function HistoryPage() {
                       {Object.entries(selectedRecord.metadata).map(([key, value]) => (
                         <div key={key} className="grid grid-cols-2 text-sm">
                           <span className="font-medium">{key}</span>
-                          <span>{value as string}</span>
+                          <span>{typeof value === 'object' ? JSON.stringify(value) : String(value)}</span>
                         </div>
                       ))}
                     </div>
@@ -321,6 +500,14 @@ export default function HistoryPage() {
               </div>
 
               <DialogFooter>
+                <Button variant="destructive" 
+                  onClick={() => {
+                    setRecordToDelete(selectedRecord.id)
+                    setSelectedRecord(null)
+                  }}
+                  className="mr-auto">
+                  Delete
+                </Button>
                 <Button variant="outline" onClick={() => setSelectedRecord(null)}>
                   Close
                 </Button>
@@ -328,6 +515,36 @@ export default function HistoryPage() {
             </DialogContent>
           </Dialog>
         )}
+        
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={!!recordToDelete} onOpenChange={(open) => !open && setRecordToDelete(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-destructive" />
+                Confirm Deletion
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete this verification record? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction 
+                onClick={handleDeleteRecord}
+                disabled={isDeletingRecord} 
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                {isDeletingRecord ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Deleting...
+                  </>
+                ) : 'Delete'}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </ProtectedRoute>
   )

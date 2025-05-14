@@ -170,37 +170,28 @@ class PublicKeyService(CachedService[Dict[str, Any]]):
         public_keys = await self.public_key_repo.get_by_user_id(user_id)
         return [self._format_key_result(key) for key in public_keys]
     
-    async def delete_public_key(self, key_id: str, user_id: str) -> bool:
+    async def delete_public_key(self, public_key_id: str, user_id: str) -> bool:
         """
         Delete a public key.
         
         Args:
-            key_id: The public key ID
+            public_key_id: The public key ID
             user_id: The ID of the user who owns the key
             
         Returns:
-            True if deleted, False otherwise
-            
-        Raises:
-            ValueError: If the user does not own the key
+            bool: True if the key was deleted, False otherwise
         """
-        # Get the key first to check ownership
-        public_key = await self.public_key_repo.get_by_id(key_id)
-        if not public_key:
+        if not self.public_key_repo:
             return False
             
-        # Check ownership
-        if str(public_key.user_id) != user_id:
-            raise ValueError("User does not own this public key")
-            
-        # Delete from database
-        success = await self.public_key_repo.delete(key_id)
+        key = await self.public_key_repo.get_by_id(public_key_id)
         
-        # Delete from cache if successful
-        if success:
-            await self.delete_from_cache(self.get_cache_key(key_id))
+        if not key or str(key.user_id) != user_id:
+            return False
             
-        return success
+        await self.public_key_repo.delete(key.id)
+        
+        return True
     
     def _format_key_result(self, public_key) -> Dict[str, Any]:
         """
@@ -212,6 +203,14 @@ class PublicKeyService(CachedService[Dict[str, Any]]):
         Returns:
             A dictionary with the public key details
         """
+        # Ensure metadata is a valid dictionary
+        if hasattr(public_key, 'key_metadata'):
+            metadata = public_key.key_metadata or {}
+            if not isinstance(metadata, dict):
+                metadata = {}
+        else:
+            metadata = {}
+            
         return {
             "id": str(public_key.id),
             "name": public_key.name,
@@ -221,8 +220,9 @@ class PublicKeyService(CachedService[Dict[str, Any]]):
             "user_id": str(public_key.user_id),
             "created_at": public_key.created_at.isoformat(),
             "updated_at": public_key.updated_at.isoformat() if public_key.updated_at else None,
-            "metadata": public_key.metadata,
-            # We don't include the actual key data in the response for security
+            "metadata": metadata,
+            "key_data": public_key.key_data,
+            "is_active": True,
             "key_fingerprint": self._calculate_key_fingerprint(public_key.key_data)
         }
         
@@ -341,76 +341,83 @@ class PublicKeyService(CachedService[Dict[str, Any]]):
         if not provider:
             raise ValueError(f"Algorithm '{algorithm_id}' not supported")
         
-        # Generate a new UUID for the key
-        key_id = str(uuid.uuid4())
+        if not self.public_key_repo:
+            raise ValueError("Public key repository not available")
+            
+        # Calculate fingerprint for the key
+        fingerprint = self._calculate_key_fingerprint(key_data)
         
-        # For tests, return a mock result
-        # In a real implementation, this would create a record in the database
-        return {
-            "id": key_id,
-            "user_id": user_id,
-            "algorithm_id": algorithm_id,
-            "algorithm_name": provider.get_algorithm_name(),
-            "curve": curve,
-            "key_data": key_data,
-            "name": name,
-            "description": description,
-            "metadata": metadata or {},
-            "is_active": True
-        }
+        # Ensure metadata is a dict
+        safe_metadata = {}
+        if metadata is not None and isinstance(metadata, dict):
+            safe_metadata = metadata
+        
+        # Store in database
+        created_key = await self.public_key_repo.create(
+            key_data=key_data,
+            algorithm_name=algorithm_id,
+            user_id=user_id,
+            name=name,
+            description=description,
+            curve_name=curve,
+            metadata=safe_metadata
+        )
+        
+        # Format and return the result
+        return self._format_key_result(created_key)
     
     async def update_public_key(
         self,
-        public_key_id: str,
-        user_id: str,
+        key_id: str,
         name: Optional[str] = None,
         description: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
-        is_active: Optional[bool] = None
-    ) -> Optional[Dict[str, Any]]:
+        metadata: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
         """
-        Update a public key.
+        Update a public key's metadata.
         
         Args:
-            public_key_id: Public key ID
-            user_id: Owner user ID
-            name: New name
-            description: New description
-            metadata: New metadata
-            is_active: New active status
+            key_id: The ID of the public key to update
+            name: New name for the key (optional)
+            description: New description for the key (optional)
+            metadata: New metadata for the key (optional)
             
         Returns:
-            The updated public key or None if not found
+            The updated public key data
             
         Raises:
-            ValueError: If the public key ID is invalid
+            ValueError: If the key doesn't exist
         """
-        # Get the existing key
-        existing_key = await self.get_public_key_by_id(public_key_id)
-        if not existing_key:
-            return None
-        
-        # For tests, return a mock result
-        # In a real implementation, this would update a record in the database
-        return {
-            **existing_key,
-            "name": name if name is not None else existing_key.get("name"),
-            "description": description if description is not None else existing_key.get("description"),
-            "metadata": metadata if metadata is not None else existing_key.get("metadata", {}),
-            "is_active": is_active if is_active is not None else existing_key.get("is_active", True)
-        }
-    
-    async def delete_public_key(self, public_key_id: str, user_id: str) -> bool:
-        """
-        Delete a public key.
-        
-        Args:
-            public_key_id: Public key ID
-            user_id: Owner user ID
+        if not self.public_key_repo:
+            raise ValueError("Public key repository not available")
             
-        Returns:
-            True if the key was deleted, False otherwise
-        """
-        # For tests, always return True
-        # In a real implementation, this would delete a record from the database
-        return True 
+        # Get the existing key
+        key = await self.public_key_repo.get_by_id(key_id)
+        
+        if not key:
+            raise ValueError(f"Public key with ID {key_id} not found")
+            
+        # Prepare update data
+        update_data = {}
+        
+        if name is not None:
+            update_data["name"] = name
+            
+        if description is not None:
+            update_data["description"] = description
+            
+        if metadata is not None:
+            # Merge with existing metadata if present
+            existing_metadata = key.key_metadata or {}
+            merged_metadata = {**existing_metadata, **metadata}
+            update_data["key_metadata"] = merged_metadata
+        
+        # If no updates, return the existing key
+        if not update_data:
+            return self._format_key_result(key)
+            
+        # Perform the update
+        updated_key = await self.public_key_repo.update(key.id, update_data)
+        
+        # Return the formatted response
+        return self._format_key_result(updated_key) 

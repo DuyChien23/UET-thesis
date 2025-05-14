@@ -5,8 +5,8 @@ from datetime import datetime
 
 class PublicKeyBase(BaseModel):
     """Base schema for public key data."""
-    algorithm_id: str = Field(..., description="Algorithm ID for this key")
-    curve: str = Field(..., description="Curve or key type for this key")
+    algorithm_name: str = Field(..., description="Algorithm name for this key")
+    curve_name: str = Field(..., description="Curve name for this key")
     key_data: str = Field(..., description="The base64-encoded public key data")
     name: Optional[str] = Field(None, description="A friendly name for this key")
     description: Optional[str] = Field(None, description="A description of this key")

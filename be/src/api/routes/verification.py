@@ -3,13 +3,16 @@ API routes for signature verification.
 """
 
 import uuid
+import csv
+import io
 from datetime import datetime
-from fastapi import APIRouter, Depends, HTTPException, Body, Path
+from fastapi import APIRouter, Depends, HTTPException, Body, Path, Query
+from fastapi.responses import StreamingResponse
 from pydantic import UUID4
 from sqlalchemy.ext.asyncio import AsyncSession
-from starlette.status import HTTP_404_NOT_FOUND, HTTP_400_BAD_REQUEST
+from starlette.status import HTTP_404_NOT_FOUND, HTTP_400_BAD_REQUEST, HTTP_403_FORBIDDEN
 
-from src.api.schemas.verification import VerificationRequest, VerificationResponse, BatchVerificationRequest, BatchVerificationResponse
+from src.api.schemas.verification import VerificationRequest, VerificationResponse, BatchVerificationRequest, BatchVerificationResponse, VerificationHistoryResponse, VerificationDelete
 from src.services.verification import VerificationService
 from src.services.public_keys import PublicKeyService
 from src.db.session import get_db_session
@@ -138,4 +141,146 @@ async def get_verification(
             detail="Verification record not found"
         )
     
-    return result 
+    return result
+
+
+@router.get("/history/user", response_model=VerificationHistoryResponse)
+async def get_user_verification_history(
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    status: str = Query(None),
+    start_date: datetime = Query(None),
+    end_date: datetime = Query(None),
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """
+    Get verification history for current user.
+    
+    Retrieves verification records for the currently authenticated user.
+    Supports pagination, filtering by status and date range.
+    """
+    verification_service = get_verification_service()
+    
+    result = await verification_service.get_user_verification_history(
+        user_id=str(current_user.id),
+        limit=limit,
+        offset=offset,
+        status=status,
+        start_date=start_date,
+        end_date=end_date
+    )
+    
+    return result
+
+
+@router.get("/history/export")
+async def export_verification_history(
+    status: str = Query(None),
+    start_date: datetime = Query(None),
+    end_date: datetime = Query(None),
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """
+    Export verification history to CSV.
+    
+    Exports all verification records for the currently authenticated user to a CSV file.
+    Supports filtering by status and date range.
+    Returns a CSV file as a streaming response.
+    """
+    verification_service = get_verification_service()
+    
+    # Get all records (no pagination)
+    result = await verification_service.get_user_verification_history(
+        user_id=str(current_user.id),
+        limit=1000,  # Use a high limit to get all records
+        offset=0,
+        status=status,
+        start_date=start_date,
+        end_date=end_date
+    )
+    
+    # Create a StringIO object to write CSV data
+    output = io.StringIO()
+    writer = csv.writer(output)
+    
+    # Write header row
+    writer.writerow([
+        "ID", 
+        "Document Hash", 
+        "Algorithm", 
+        "Curve", 
+        "Status", 
+        "Verification Time",
+        "Public Key ID"
+    ])
+    
+    # Write data rows
+    for record in result["items"]:
+        writer.writerow([
+            record["id"],
+            record["document_hash"],
+            record["algorithm_name"],
+            record["curve_name"] or "N/A",
+            record["status"],
+            record["verified_at"].isoformat(),
+            record["public_key_id"]
+        ])
+    
+    # Prepare the response
+    output.seek(0)
+    
+    # Get the current date for the filename
+    current_date = datetime.now().strftime("%Y-%m-%d")
+    filename = f"verification-history-{current_date}.csv"
+    
+    # Return the CSV as a streaming response
+    return StreamingResponse(
+        io.StringIO(output.getvalue()),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": f"attachment; filename={filename}"
+        }
+    )
+
+
+@router.delete("/records/{record_id}", response_model=VerificationDelete)
+async def delete_verification_record(
+    record_id: UUID4 = Path(..., description="The verification record ID"),
+    current_user: UserResponse = Depends(get_current_user)
+):
+    """
+    Delete a verification record.
+    
+    Deletes a verification record created by the current user.
+    """
+    verification_service = get_verification_service()
+    
+    # Check if the record exists and belongs to the user
+    record = await verification_service.get_verification_by_id(str(record_id))
+    
+    if not record:
+        raise HTTPException(
+            status_code=HTTP_404_NOT_FOUND,
+            detail="Verification record not found"
+        )
+    
+    # Check if the user owns this record
+    if record.get("user_id") and str(record["user_id"]) != str(current_user.id):
+        raise HTTPException(
+            status_code=HTTP_403_FORBIDDEN,
+            detail="You don't have permission to delete this record"
+        )
+    
+    # Delete the record
+    success = await verification_service.delete_verification_record(str(record_id))
+    
+    if not success:
+        raise HTTPException(
+            status_code=HTTP_400_BAD_REQUEST,
+            detail="Failed to delete verification record"
+        )
+    
+    return {
+        "success": True,
+        "message": "Verification record deleted successfully"
+    } 

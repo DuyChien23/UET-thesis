@@ -204,4 +204,109 @@ class VerificationRepository(BaseRepository[VerificationRecord]):
         
         async with self.session_factory() as session:
             result = await session.execute(query)
-            return result.scalars().all() 
+            return result.scalars().all()
+    
+    async def get_filtered_records(
+        self,
+        filters: Dict[str, Any],
+        limit: int = 20,
+        offset: int = 0,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
+        order_by: str = "verified_at",
+        order_desc: bool = True
+    ) -> List[VerificationRecord]:
+        """
+        Get verification records with filters.
+        
+        Args:
+            filters (Dict[str, Any]): Filters to apply
+            limit (int): Maximum number of records to return
+            offset (int): Number of records to skip
+            start_date (Optional[datetime]): Filter by verified_at (start date)
+            end_date (Optional[datetime]): Filter by verified_at (end date)
+            order_by (str): Field to order by
+            order_desc (bool): Whether to order in descending order
+            
+        Returns:
+            List[VerificationRecord]: List of verification records
+        """
+        conditions = []
+        
+        # Process standard filters
+        for key, value in filters.items():
+            if hasattr(VerificationRecord, key):
+                if key == "user_id" and isinstance(value, str):
+                    value = uuid.UUID(value)
+                conditions.append(getattr(VerificationRecord, key) == value)
+        
+        # Process date range filter
+        if start_date:
+            conditions.append(VerificationRecord.verified_at >= start_date)
+        if end_date:
+            conditions.append(VerificationRecord.verified_at <= end_date)
+        
+        # Build the query
+        query = select(VerificationRecord)
+        
+        if conditions:
+            query = query.where(and_(*conditions))
+        
+        # Apply ordering
+        if hasattr(VerificationRecord, order_by):
+            order_attr = getattr(VerificationRecord, order_by)
+            if order_desc:
+                query = query.order_by(desc(order_attr))
+            else:
+                query = query.order_by(order_attr)
+        
+        # Apply pagination
+        query = query.offset(offset).limit(limit)
+        
+        # Execute the query
+        async with self.session_factory() as session:
+            result = await session.execute(query)
+            return result.scalars().all()
+    
+    async def count(
+        self,
+        filters: Dict[str, Any],
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None
+    ) -> int:
+        """
+        Count verification records with filters.
+        
+        Args:
+            filters (Dict[str, Any]): Filters to apply
+            start_date (Optional[datetime]): Filter by verified_at (start date)
+            end_date (Optional[datetime]): Filter by verified_at (end date)
+            
+        Returns:
+            int: Count of verification records
+        """
+        conditions = []
+        
+        # Process standard filters
+        for key, value in filters.items():
+            if hasattr(VerificationRecord, key):
+                if key == "user_id" and isinstance(value, str):
+                    value = uuid.UUID(value)
+                conditions.append(getattr(VerificationRecord, key) == value)
+        
+        # Process date range filter
+        if start_date:
+            conditions.append(VerificationRecord.verified_at >= start_date)
+        if end_date:
+            conditions.append(VerificationRecord.verified_at <= end_date)
+        
+        # Build the query
+        query = select(func.count()).select_from(VerificationRecord)
+        
+        if conditions:
+            query = query.where(and_(*conditions))
+        
+        # Execute the query
+        async with self.session_factory() as session:
+            result = await session.execute(query)
+            return result.scalar() or 0 
