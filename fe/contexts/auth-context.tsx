@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
 import { useRouter } from "next/navigation"
+import { apiService } from "@/lib/api"
 
 type User = {
   id: string
@@ -21,28 +22,13 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-// Mock users for demonstration
-const MOCK_USERS = [
-  {
-    id: "user-1",
-    username: "admin",
-    email: "admin@example.com",
-    password: "admin123",
-    roles: ["admin", "user"],
-  },
-  {
-    id: "user-2",
-    username: "user",
-    email: "user@example.com",
-    password: "user123",
-    roles: ["user"],
-  },
-]
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
+
+  // Check if user has admin role
+  const isAdmin = user?.roles?.includes("admin") || false
 
   useEffect(() => {
     // Check if user is logged in on mount
@@ -54,16 +40,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return
         }
 
-        // For demo purposes, we'll parse the token to get the user
+        // Fetch current user profile
         try {
-          const userData = JSON.parse(atob(token.split(".")[1]))
-          if (userData && userData.user) {
-            setUser(userData.user)
-          } else {
-            localStorage.removeItem("token")
-          }
-        } catch (e) {
-          localStorage.removeItem("token")
+          const userData = await apiService.getUserProfile();
+          setUser(userData);
+        } catch (error) {
+          console.error("Failed to get user data:", error);
+          localStorage.removeItem("token");
         }
       } catch (error) {
         console.error("Auth check failed:", error)
@@ -78,20 +61,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const login = async (username: string, password: string) => {
     setIsLoading(true)
     try {
-      // For demo purposes, we'll use mock authentication
-      const mockUser = MOCK_USERS.find((u) => u.username === username && u.password === password)
-
-      if (!mockUser) {
-        throw new Error("Invalid credentials")
-      }
-
-      // Create a simple mock token
-      const { password: _, ...userWithoutPassword } = mockUser
-      const token = `mock.${btoa(JSON.stringify({ user: userWithoutPassword }))}.token`
-
-      localStorage.setItem("token", token)
-      setUser(userWithoutPassword)
-      router.push("/dashboard")
+      // Call the real API login endpoint
+      const response = await apiService.login({ username, password });
+      
+      // Save token to localStorage
+      localStorage.setItem("token", response.access_token);
+      
+      // Set user data
+      setUser({
+        id: response.id,
+        username: response.username,
+        email: response.email,
+        // For now, we'll assume roles might be included in the response directly
+        roles: response.roles || ["user"],
+      });
+      
+      router.push("/dashboard");
     } catch (error) {
       console.error("Login failed:", error)
       throw error
@@ -103,12 +88,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     setIsLoading(true)
     try {
-      // Just remove the token for the mock implementation
-      localStorage.removeItem("token")
-      setUser(null)
-      router.push("/login")
+      // Call the real API logout endpoint
+      await apiService.logout();
+      
+      // Clear local storage and state
+      localStorage.removeItem("token");
+      setUser(null);
+      router.push("/login");
     } catch (error) {
       console.error("Logout failed:", error)
+      // Even if the API call fails, we should clean up local state
+      localStorage.removeItem("token");
+      setUser(null);
+      router.push("/login");
     } finally {
       setIsLoading(false)
     }
@@ -117,8 +109,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const register = async (username: string, email: string, password: string) => {
     setIsLoading(true)
     try {
-      // For demo purposes, we'll just redirect to login
-      router.push("/login?registered=true")
+      // Call the real API register endpoint
+      await apiService.register({ username, email, password });
+      
+      // Redirect to login page with registered=true parameter
+      router.push("/login?registered=true");
     } catch (error) {
       console.error("Registration failed:", error)
       throw error
@@ -126,9 +121,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(false)
     }
   }
-
-  // Check if user has admin role
-  const isAdmin = user?.roles?.includes("admin") || false
 
   return (
     <AuthContext.Provider value={{ user, isLoading, isAdmin, login, logout, register }}>

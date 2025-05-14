@@ -1,7 +1,6 @@
 "use client"
 
-import type React from "react"
-
+import type { FormEvent } from "react"
 import { useState } from "react"
 import { useAuth } from "@/contexts/auth-context"
 import { useRouter, useSearchParams } from "next/navigation"
@@ -12,6 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Loader2, Info } from "lucide-react"
+import { getErrorMessage, isApiError } from "@/lib/errors"
 
 export default function LoginPage() {
   const [username, setUsername] = useState("")
@@ -24,7 +24,7 @@ export default function LoginPage() {
   const redirect = searchParams.get("redirect") || "/dashboard"
   const registered = searchParams.get("registered") === "true"
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setError(null)
     setIsSubmitting(true)
@@ -32,8 +32,8 @@ export default function LoginPage() {
     try {
       await login(username, password)
       router.push(redirect)
-    } catch (err) {
-      setError("Invalid username or password")
+    } catch (err: any) {
+      setError(getErrorMessage(err))
     } finally {
       setIsSubmitting(false)
     }
@@ -62,13 +62,10 @@ export default function LoginPage() {
           <Alert className="mb-4 bg-blue-50 text-blue-800 dark:bg-blue-900/20 dark:text-blue-400">
             <Info className="h-4 w-4" />
             <AlertDescription>
-              <strong>Demo Credentials:</strong>
+              <strong>API Connection:</strong>
               <div className="mt-1">
                 <p>
-                  <strong>Admin:</strong> username: admin, password: admin123
-                </p>
-                <p>
-                  <strong>User:</strong> username: user, password: user123
+                  Connected to <strong>localhost:8000</strong>. Make sure the backend API is running.
                 </p>
               </div>
             </AlertDescription>

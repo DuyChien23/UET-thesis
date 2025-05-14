@@ -18,6 +18,11 @@
      - Headers: Authorization: Bearer {access_token}
      - Response: `{ "message": "Successfully logged out" }`
 
+   - `GET /api/auth/profile`
+     - Get the current authenticated user's profile
+     - Headers: Authorization: Bearer {access_token}
+     - Response: `{ "id": "uuid", "username": "string", "email": "string", "roles": ["string"], "created_at": "datetime" }`
+
 2. **User Management**
    - `GET /api/users`
      - List all users (admin only)
